@@ -94,6 +94,25 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
+#================================ Remote Server ===============================#
+class Server:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+    def msgSend(self, msg, serv):
+        # Create a socket to use
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((self.host,self.port))
+
+        # Calculate message length and send intent
+        m_len = len(msg)
+        s.send('MSG_SEND {0}'.forat(m_len))
+    
+        # Send the message
+        s.send(msg)
+
+
 #================================ Client Part =================================#
 class client:
 
@@ -133,6 +152,8 @@ if __name__ == '__main__':
                 new one, leave blank: '''))
 
     
+    rserver = None # Initially the remote server is set to None
+                   # Gets set on a connection command
 
     while True:
         # Get command or message
@@ -140,7 +161,19 @@ if __name__ == '__main__':
 
         # Determine if message is a command
         if msg.startswith('/'):
-            # process the command
-            pass
+            cmd = msg.split(' ')[0].split('/')[1]
+            # If we got connect command, create a new object to use
+            # for this connection
+            if cmd == 'connect':
+                try:
+                    # Attempt to parse the data
+                    host = msg.split(' ')[1]
+                    port = int(msg.split(' ')[2])
+                    rserver = Server(host,port)
+                    print('Connecting to: {0}:{1}'.format(host,port))
+                except IndexError as e:
+                    print('You must supply a port') # For now no default port
+                    
         else:
             # process and send the message
+            pass
