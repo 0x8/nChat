@@ -23,6 +23,52 @@ import math
 import sys
 import os
 
+# Global INTENTS set
+'''
+Intents signify what the client wants the server to do and allow the server to
+respond or act accordingly.
+
+Intents
+--------
+
+INIT_CONV:
+    Sent at conversation start, this signifies the beginning of a conversation.
+    Additional metadata may be sent to signify that the two have chatted before
+    and an attempt should be made to authenticate the connecting client
+
+MSG_SEND:
+    The basic intent signifying that a message is about to be sent. This is sent
+    along with the length of the message so that the recieving end knows not to
+    kill the connection to early and/or can respond with an error after a set
+    timeout.
+
+DHS:
+    This signifies that the server should start the Diffie-Hellman key exchange
+    to generate a shared secret to be used with the session. In this program, an
+    8 byte key is used.
+
+DHV:
+    This is sent after the key exchange to verify that the key has been
+    successfully shared between the two parties. For security purposes, the
+    public key of the other party is used to encrypt the message then decrypted
+    and encrypted again with the senders key. If both send back DH_OK, the
+    generation was successful.
+
+PKC:
+    This signifies that a public key change is needed. This is to manually
+    retire old public keys and allow the use of fresh ones. Requires
+    authentication.
+
+NSS:
+    This tells the server to restart the Diffi-Hellman process to create a new
+    shared secret. If the old secret is too old or believed compromised, this
+    allows the quick generation of a new one.
+
+UAUTH:
+    This is for basic user authentication. Password is hashed with
+    bcrypt-sha256 and stored along with user's desired username.
+'''
+intents = {'INIT_CONV','MSG_SEND','DHS','PKC','PKR','NSS','UAUTH'}
 
 
 
@@ -54,27 +100,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     '''
     This class is called whenever the threaded server recieves a connection and
     needs to handle the data. In my scheme, each send will be comprised,
-    generally, of two messages: an intent, and content.
-
-    The method in which the connection is handled depends on the intent. During
-    initial connection, the INIT_CONVERSATION intent will be sent. Upon
-    recieving this, the client will do two things: first check for the existance
-    of a known_hosts file and see if it contains the IP of the remote client in
-    which case, that clients public key would be loaded from the file for
-    encrypting all further communication. The server then responds with either
-    KEY_FOUND or KEY_NEEDED
-
-    I'll break the response up based on intent:
-        INIT_CONV:
-            This is sent at the beginning of transmission and prompts the user
-            for their public key. This is done by sending the KEY_REQ intent
-            back to the other user.
-        KEY_REQ:
-            The remote server is requesting an rsa public_key to use for the
-            remainder of this session. Forcing a new key per session eliminates
-            key reuse though for practicality's sake I would like to eventually
-            have keys cached dependent upon some sort of secret that is agreed
-            upon on initial connection
+    generally, of two messages: an intent, and content. The method in which the
+    connection is handled depends on the intent.
     '''
     def handle(self):
         '''
@@ -84,7 +111,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         c_intent = str(self.request.recv(32),'utf8')
         
         # Determine what to do based on intent:
-            
+        if 
     
 
         # Respond
@@ -93,48 +120,49 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
-
-#================================ Remote Server ===============================#
-class Server:
-    def __init__(self, host, port):
+#================================ Client Part =================================#
+class Client:
+    def __init__(self, host, port, rsa, p_c=None):
         self.host = host
         self.port = port
+        self.rsa  = rsa
+        self.3des = 
+        # If not previously connected run the handshake
+        if not p_c:
+            # Initial RSA handshake
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 
     def msgSend(self, msg, serv):
+        
         # Create a socket to use
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.host,self.port))
+        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
+            s.connect((self.host,self.port))
 
-        # Calculate message length and send intent
-        m_len = len(msg)
-        s.send('MSG_SEND {0}'.forat(m_len))
+            # Calculate message length and send intent
+            m_len = len(msg)
+            s.sendall(r'MSG_SEND {0}'.forat(m_len))
     
-        # Send the message
-        s.send(msg)
+            # Send the message
+            s.send(msg)
 
-
-#================================ Client Part =================================#
-class client:
-
-    def __init__(self, rsa):
-        self.rsa = rsa
-
-class message:
-
-    def __init__(self, content, rsa):
-        self.content = content
-        self.rsa = rsa
-
-    def encrypt(self):
-        m = base64.b64encode(bytes(self.content,'utf8'))
-        self.content = self.rsa.encrypt(m,1)
-
-    def decrypt(self):
-        m = bytes.decode(base64.b64decode(self.rsa.decrypt(self.content)),'utf8')
-        self.content = m
 
 #==================================== Main ====================================#
 if __name__ == '__main__':
+        
+    # Initalize local server thread and dispatch it
+    PORT = 31333
+    server = ThreadedTCPServer(('0.0.0.0',PORT))
+    with server:
+        ip, port = server.server_address
+
+        # Start the server thread
+        server_thread = theading.Thread(target=server.serve_forever)
+        server_thread.daemon = True # Exit server when main thread exits
+        server_thread.start()
+        print('Started server in thread:', server_thread.name)
+        print('Listening on port:',port)
+
 
     n = int(input('Number of bits to use: '))
     rsa = RSA.generate(n)
@@ -169,7 +197,7 @@ if __name__ == '__main__':
                     # Attempt to parse the data
                     host = msg.split(' ')[1]
                     port = int(msg.split(' ')[2])
-                    rserver = Server(host,port)
+                    rserver = Client(host,port,rsa)
                     print('Connecting to: {0}:{1}'.format(host,port))
                 except IndexError as e:
                     print('You must supply a port') # For now no default port
