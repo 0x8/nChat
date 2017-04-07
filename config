@@ -1,0 +1,26 @@
+# This file allows the user to set some pre-configured options to avoid being
+# asked when the program starts. The options in this file are
+# 
+# rsadir: The path to the rsa dump that takes place on initial key creation and
+#         on program completion. It simply contains your public and private keys
+#
+# username: Youre desired username. Will be prefixed to messages sent
+#
+# password: Password desired to authenticate with. It is not only ok, but
+#           advised to leave this one blank but I leave that up to you
+# 
+# All entries are in the form <key>=<value> though <key> = <value> is also fine.
+# All lines beginning with # are comments and ignored by the parser so comment
+# away. I have added a few defaults for you.
+
+# RSA key bits
+rsa_bits = 4096
+
+# RSA Key directory
+rsadir=/home/nullp0inter/.ssh/
+
+# Username
+username=nullp0inter
+
+# Password used to auth to pickier users.
+password=Gr4gn0r
