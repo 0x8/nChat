@@ -14,6 +14,7 @@
 from Crypto.Util import number # pycrypto
 from Crypto.PublicKey import RSA
 import socketserver
+import threading
 import textwrap
 import hashlib
 import socket
@@ -22,6 +23,9 @@ import base64
 import math
 import sys
 import os
+
+# Global Port Setting for Listen:
+LPORT = 31333
 
 # Global INTENTS set
 '''
@@ -67,8 +71,15 @@ NSS:
 UAUTH:
     This is for basic user authentication. Password is hashed with
     bcrypt-sha256 and stored along with user's desired username.
+
+*_ACK:
+    These acknowledge the prior protocol and are used to progress with the
+    correct response
 '''
-intents = {'INIT_CONV','MSG_SEND','DHS','PKC','PKR','NSS','UAUTH'}
+intents = {'INIT_CONV','MSG_SEND','DHS',
+           'PKC','PKR','NSS','UAUTH','INIT_ACK',
+           'MSG_SEND_ACK','DHS_ACK','PKC_ACK',
+           'NSS_ACK','UAUTH_ACK'}
 
 
 
@@ -103,34 +114,82 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     generally, of two messages: an intent, and content. The method in which the
     connection is handled depends on the intent.
     '''
+    def __init__(self, client):
+        super.__init__()
+        self.client = client
+        self.testval = None
+        self.prev_con = False
+
     def handle(self):
         '''
         This does the bulk of the handling
         '''
         # Attempt to get intent
-        c_intent = str(self.request.recv(32),'utf8')
-        
-        # Determine what to do based on intent:
-        if 
-    
+        raw = str(self.request.recv(64),'utf8').strip('=')
+        print(raw)
+        c_intent = raw.split(':')[0]
 
+        '''
+        This section will determine which action to take based on the intent. If
+        the prev_con flag has not been set then it means that no connection has
+        yet been established and therefore the intent should be, in plaintext,
+        INIT_CONV to be valid. If prev_con has been previously set then the
+        shared secret generated during startup will be used to decrypt the
+        intent first, then the intent will be handled. 3DES decryption, should
+        in theory, be very quick.
+        '''
+        if not prev_con and c_intent != 'INIT_CONV':
+            response = bytes(self.ipad(r'INVALID_INTENT'),'utf8')
+            self.request.sendall(response)
+
+        if prev_con: # If connected and handshake done
+            if cleint.desdecrypt(c_intent) not in intents:
+                response = bytes(self.ipad(r"INVALID_INTENT {0}".format(
+                                           c_intent)), 'utf8')
+                self.request.sendall(response)
+        else:
+            if c_intent == 'INIT_CONV':
+                parts = raw.split(':')[1:]
+                if len(parts) != 1: # Bad
+                    response = bytes(r'INVALID_INTENT')
+                    self.request.sendall(response)
+                else: # Good
+                    response = 'INIT_ACK'
+                    
+            elif c_intent == 'INIT_ACK':
+                pass
         # Respond
-        
+    
+    def ipad(msg):
+        '''
+        This method pads the INTENT message up to 64 bytes using =
+        '''
+        if(len(msg) < 64):
+            pad_len = 64 - len(msg)
+            pad = '=' * pad_len
+            msg = msg + pad
+        return msg
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 #================================ Client Part =================================#
 class Client:
-    def __init__(self, host, port, rsa, p_c=None):
+    def __init__(self, host, port, rsa, auth=None):
         self.host = host
         self.port = port
         self.rsa  = rsa
-        self.3des = 
+        self.auth = auth
+        self.des3 = None
+
         # If not previously connected run the handshake
-        if not p_c:
+        if not auth:
             # Initial RSA handshake
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(self.host,self.port)
+            s.connect((self.host,self.port))
+            intent = 'INIT_CONV:0:{0}'.format(LPORT)
+            s.send(bytes(intent,'utf8'))
 
 
     def msgSend(self, msg, serv):
@@ -151,22 +210,22 @@ class Client:
 if __name__ == '__main__':
         
     # Initalize local server thread and dispatch it
-    PORT = 31333
-    server = ThreadedTCPServer(('0.0.0.0',PORT))
+    PORT = LPORT
+    server = ThreadedTCPServer(('0.0.0.0',PORT),ThreadedTCPRequestHandler)
     with server:
         ip, port = server.server_address
 
         # Start the server thread
-        server_thread = theading.Thread(target=server.serve_forever)
+        server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True # Exit server when main thread exits
         server_thread.start()
         print('Started server in thread:', server_thread.name)
         print('Listening on port:',port)
-
+#DEBUG
+    server.testval = 123
 
     n = int(input('Number of bits to use: '))
     rsa = RSA.generate(n)
-    m = message('This is a test message', rsa)
     
     print(textwrap.dedent('''
           [nChat]
@@ -195,10 +254,17 @@ if __name__ == '__main__':
             if cmd == 'connect':
                 try:
                     # Attempt to parse the data
-                    host = msg.split(' ')[1]
-                    port = int(msg.split(' ')[2])
-                    rserver = Client(host,port,rsa)
+                    parts = msg.split(' ')[1:]
+                    host  = parts[0]
+                    port  = int(parts[1])
+                    if len(parts) > 2:
+                        auth = parts[2]
+                    else:
+                        auth = 0
+                    rserver = Client(host,port,rsa,auth)
                     print('Connecting to: {0}:{1}'.format(host,port))
+                    server.client = rserver
+                    server.init_conv()
                 except IndexError as e:
                     print('You must supply a port') # For now no default port
                     
