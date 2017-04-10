@@ -116,7 +116,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     '''
     def __init__(self, client):
         super.__init__()
-        self.client = client
+        self.client = self.server.client
         self.testval = None
         self.prev_con = False
 
