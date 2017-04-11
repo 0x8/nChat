@@ -7,112 +7,97 @@ This module defines the behavior of the threaded server. Splitting the modules
 makes them easier to maintain. This also helps maintain readability.
 '''
 
-
+from passlib.hash import bcrypt_sha256
+from remoteInfo import remoteInfo
 import socketserver
 import ServerInfo
+import getpass
 import socket
 import client
 import Config
 
-'''
-Intents signify what the client wants the server to do and allow the server to
-respond or act accordingly.
-
-Intents
---------
-
-INIT_CONV:
-    Sent at conversation start, this signifies the beginning of a conversation.
-    Additional metadata may be sent to signify that the two have chatted before
-    and an attempt should be made to authenticate the connecting client
-
-MSG_SEND:
-    The basic intent signifying that a message is about to be sent. This is sent
-    along with the length of the message so that the recieving end knows not to
-    kill the connection to early and/or can respond with an error after a set
-    timeout.
-
-DHS:
-    This signifies that the server should start the Diffie-Hellman key exchange
-    to generate a shared secret to be used with the session. In this program, an
-    8 byte key is used.
-
-DHV:
-    This is sent after the key exchange to verify that the key has been
-    successfully shared between the two parties. For security purposes, the
-    public key of the other party is used to encrypt the message then decrypted
-    and encrypted again with the senders key. If both send back DH_OK, the
-    generation was successful.
-                                                                                
-PKC:                                                                            
-    This signifies that a public key change is needed. This is to manually      
-    retire old public keys and allow the use of fresh ones. Requires            
-    authentication.                                                             
-                                                                                
-NSS:                                                                            
-    This tells the server to restart the Diffi-Hellman process to create a new  
-    shared secret. If the old secret is too old or believed compromised, this   
-    allows the quick generation of a new one.                                   
-                                                                                
-UAUTH:                                                                          
-    This is for basic user authentication. Password is hashed with              
-    bcrypt-sha256 and stored along with user's desired username.                
-                                                                                
-*_ACK:                                                                          
-    These acknowledge the prior protocol and are used to progress with the      
-    correct response                                                            
-'''                                                                             
-intents = {'INIT_CONV','MSG_SEND','DHS',                                        
-           'PKC','PKR','NSS','UAUTH','INIT_ACK',                                
-           'MSG_SEND_ACK','DHS_ACK','PKC_ACK',                                  
-           'NSS_ACK','UAUTH_ACK'}
-
+BUFSIZE = 2048
+localInfo = None
+connections = dict()
 
 #============================================================[ Request Handler ]
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     # Primary Handling Class
     def handle(self):
-        msg = str(self.request.recv(64),'utf8').strip('=')
-        intent = msg.split(':')[0]
+        '''Handle incoming requests
+        This method is called on each remote connection made. The use of global
+        is required to reference variables outside of its own scope. This allows
+        for keeping track of the client between requests.
+        '''
+        
+        msg = str(self.request.recv(BUFSIZE),'utf8')
+        intent  = msg.split(':')[0]
+        ip,port = msg.split(':')[1],int(msg.split(':')[2])
+        
+        # Add connection to dict and set up information
+        if ip not in connections.keys():
+            connections[ip] = remoteInfo()
+            connections[ip].HOST = ip
+            connections[ip].PORT = port
 
+
+        # ---- HAND SHAKE INTENTS ---- #
         # Determine if this is an init:
         if intent == 'INIT_CONV':
+            init_conv(ip,port)
             
-            
-        if intent = 'INIT_ACK' or 'INIT_ACK_ACK':
-            klen = int(msg.split(':')[1])
+        # Respond to INIT, connection establishment
+        elif intent == 'INIT_ACK':
+            init_ack(msg,ip,port)
 
-        else:
-            # Only try public key decryption if a session has been established
-            if self.established == TRUE:
-                if self.ServerInfo.cipher = utf8
-                mlen = msg.split(':')[1]
-                msg = self.request.recv(mlen)
-                plain = str(self.cipher.decrypt(crypt),'utf8')
+        # Got a public key (Remote sent first)
+        elif intent == 'PK_SEND':
+            pk_send(msg,ip,port)
 
-    def init_conn(self, intent):
+        # Got a public key (Server sent first)
+        elif intent == 'PK_ACK':
+            pk_ack(msg,ip,port)
+
+        # Remote's proposed secret
+        elif intent == 'SS_SET':
+            ss_set(msg,ip,port)
+
+        # Local acknowledging remote's secret
+        elif intent == 'SS_ACK':
+            ss_ack(msg,ip,port)
+    
+        
+        # ---- CONVERSATIONAL INTENTS ---- #
+        elif intent == 'MSG':
+            pass
+
+    def init_conn(self, ip, port):
         '''Handle the initial connection to client
-        This method handles the setup of an initial connection with a client.
-        This requires sharing public key information and creation/establishment
-        of a shared key to use with AES.
+        Sends INIT_ACK back to the connecting clients server to initiale key
+        exhange and setup.
         '''
-        try:
-            # Pass the ACK then the rsa key that was generated by the client
-            self.request.sendall(bytes('INIT_ACK:{0}'.format(len(
-                                    self.ServerInfo.pubkey)),'utf8'))
-            self.request.sendall(self.ServerInfo.pubkey)
-            
-        except socket.error as err:
-            print(err)
+        sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        sock = socket.settimeout(0.0) # Non-blocking
+        sock.connect((ip,port))
+
+        intent = 'INIT_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
+                                               localInfo.PORT,
+                                               len(localInfo.pubKey))
+        sock.sendall(intent)
+
+    def do_iack(msg,ip,port):
+        klen = int(msg.split(':')[1])
+        remoteInfo.pubkey = msg.split(':')[2]
+        
 
 #===============================================================[ Server Class ]
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
-def start_server():
+def start_server(serverInfo):
     # Grab and set the HOST and port from config
-    serverInfo = Config.Server
+    global localInfo = serverInfo # saves to global
     PORT = serverInfo.PORT
     HOST = serverInfo.HOST
 
@@ -120,7 +105,7 @@ def start_server():
     server = ThreadedTCPServer((HOST,PORT),ThreadedTCPRequestHandler)
     with server:
         ip,port = server.server_address
-        
+
         # Start server thread
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True # Exit on main thread exit
