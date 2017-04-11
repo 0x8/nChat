@@ -72,9 +72,20 @@ def commandHandler(cmd):
     # Parse the command
     cmd = cmd.lower()
     cmd_parts = cmd.split(' ')
-    command = cmd_parts[0][1:]
+    command = cmd_parts[0]
     
+
+    # >> /connect <host> <port>
     if command == 'connect':
+        '''Set up a new connection
+        This section attempts to establish a connection the remote server by
+        sending the INIT_CONV intent. This begins a transfer of information
+        directly between the servers that should be automatically taken care of.
+
+        The server handler will set connection status so there is no need to do
+        so in here.'''
+
+        
         logging.info('Recieved connect command.')
         try:
             remoteHOST = cmd_parts[1]
@@ -84,7 +95,7 @@ def commandHandler(cmd):
                                                                    remotePORT)
         except ValueError as e:
             logging.debug('Received invalid port: {0}'.format(remotePORT)
-            print('Invalid port for connect: {0}'.format(remotePORT)            
+            print('Invalid port for connect: {0}'.format(remotePORT))
             return
         
         # create the socket and try to connect
@@ -94,8 +105,24 @@ def commandHandler(cmd):
         
         logging.info('Connected')
 
-        intent = 'INIT_CONV:{0}:{1}:{2}'.format(len(servInfo),
-                                                serverInformation.HOST,
-                                                serverInformation.PORT)
+        intent = 'INIT_CONV:{0}:{1}:{2}'.format(servInfo.HOST,
+                                                servInfo.PORT,
+                                                len(servInfo.publickey))
+        sock.sendall(intent)
+        logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
+                                                                remotePORT)
 
+    # >> /nick <new username>
+    elif command == 'nick':
+        new_user = cmd_parts[1]
+        old_user = 
+        servInfo.username = new_user
 
+        # Inform remote server of intent to change user
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.0) # Non-blocking
+        sock.connect((remoteHOST,remotePORT))
+        
+        intent = 'NICK_CHANGE:{0}:{1}:{2}'.format(servInfo.HOST,
+                                                  servInfo.PORT,
+                                                  servInfo.username)
