@@ -46,6 +46,15 @@ class ServerInfo:
             self.username   = serverSection['username']
             self.serverpass = serverSection['serverpass']
             log.info('Finished setting server values')
+            
+            # Public Key Stuff
+            self.privKey = None
+            self.pubKey = None
+
+            # Secret Key Stuff
+            self.IV = number.getPrime(16*8) # 16 byte IV
+            self.AESKey = number.getPrime(
+
 
         except KeyError as e:
             log.error('Missing config value in [\'SERVER\']: {0}',e)
@@ -67,11 +76,21 @@ class ServerInfo:
                 self.rsa = RSA.generate(int(self.rsa_bits))
             
             # Save the key to a PEM file
-            filepath = 'rsa/{0}_rsakey_{1}.pem'.format(self.username, 
-                        round(time.time()))
+            filepath = 'rsa/{0}_rsakey_{1}'.format(self.username, 
+                                                   round(time.time()))
+            
             log.info('Saving generated key to: {0}'.format(filepath))
+            
             with open(filepath,'wb') as f:
                 f.write(bytes(self.rsa.exportKey('PEM')))
+                log.info('Saved private key to {0}'.format(filepath))
+                self.privKey = self.rsa.exportKey('PEM')
+
+            with open(filepath+'.pub','wb') as f:
+                f.write(bytes(self.rsa.publickey().exportKey('PEM')))
+                log.info('Saved public key to {0}.pub'.format(filepath))
+                self.pubKey = self.rsa.publickey().exportKey('PEM')
+
         else:
             # Import the key from the rsa_dir
             try:
@@ -80,8 +99,11 @@ class ServerInfo:
                             self.rsa_dir))
 
                 with open(self.rsa_dir,'rb') as f:
-                    self.rsa = RSA.importKey(f.read())
-                log.info('Key imported')
+                    self.privKey = RSA.importKey(f.read())
+                    
+                with open(self.rsa_dir+'.pub','wb') as f:
+                    self.pubKey = RSA.importkey(f.read())
+                    log.info('Key imported')
 
             except FileNotFoundError as e:
                 log.error('Failed to import key, file not found')
