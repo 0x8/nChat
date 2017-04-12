@@ -107,7 +107,8 @@ def commandHandler(cmd):
         
         # create the socket and try to connect
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.0) # put into nonblocking mode
+        #sock.settimeout(0.0) # put into nonblocking mode
+        print('Trying',repr(remoteHOST),repr(remotePORT))
         sock.connect((remoteHOST,remotePORT))
         
         logging.info('Connected')
@@ -127,7 +128,7 @@ def commandHandler(cmd):
 
         # Inform remote server of intent to change user
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.0) # Non-blocking
+        #sock.settimeout(0.0) # Non-blocking
         sock.connect((remoteHOST,remotePORT))
         
         intent = 'NICK_CHANGE:{0}:{1}:{2}'.format(servInfo.HOST,

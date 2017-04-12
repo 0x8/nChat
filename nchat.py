@@ -48,13 +48,9 @@ if __name__ == '__main__':
     logging.info('Starting server on {0}:{1}'.format(serverInfo.HOST,
                                                      serverInfo.PORT))
     # Start client and server 
-    server, server_thread = threadedServer.start_server(serverInfo)
+    threadedServer.start_server(serverInfo)
     
-    if not server:
-        logging.error('Failed to start server. Exiting')
-        exit('Server creation failed')
-    else:
-        logging.info('Server started on {0}:{1}'.format(serverInfo.HOST,
+    logging.info('Server started on {0}:{1}'.format(serverInfo.HOST,
                                                         serverInfo.PORT))
     
     logging.info('Starting client...')

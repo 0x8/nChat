@@ -85,7 +85,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         exhange and setup.
         '''
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        sock.settimeout(0.0) # Non-blocking
+        #sock.settimeout(0.0) # Non-blocking
         sock.connect((ip,port))
 
         intent = 'INIT_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
@@ -104,7 +104,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                                    localInfo.PORT,
                                                    username)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.0)
+            #sock.settimeout(0.0)
             sock.sendall(intent)
 
         else:
@@ -115,7 +115,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                                                   localInfo.pubKey)
             
             sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            sock.settimeout(0.0)
+            #sock.settimeout(0.0)
             sock.connect((ip,port))
             sock.sendall(intent)
 
@@ -128,7 +128,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         
         # Socket setup
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        sock.settimeout(0.0)
+        #sock.settimeout(0.0)
         sock.connect((ip,port))
         
         # Craft intent
@@ -148,7 +148,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         # Set up socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.0)
+        #sock.settimeout(0.0)
         sock.connect((ip,port))
         
         # Generate the IV and KEY as random 16 bytes
@@ -175,7 +175,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         # Socket Creation
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        sock.settimeout(0.0)
+        #sock.settimeout(0.0)
         sock.connect((ip,port))
         
         # Get IV and Key
@@ -207,7 +207,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
         # Socket creation
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        sock.settimeout(0.0)
+        #sock.settimeout(0.0)
         sock.connect((ip,port))
         sock.sendall(intent)
     
@@ -253,7 +253,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             intent = 'CON_FIN:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
 
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.0)
+            #sock.settimeout(0.0)
             sock.connect((ip,port))
             sock.sendall(intent)
 
@@ -296,10 +296,9 @@ def start_server(serverInfo):
         ip,port = server.server_address
 
         # Start server thread
-        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread = threading.Thread(target=server.serve_forever())
         server_thread.daemon = True # Exit on main thread exit
         server_thread.start()
         print('Server started in thread:', server_thread.name)
         print('Listening on port:', port)
-        
-        return server, server_thread
+            
