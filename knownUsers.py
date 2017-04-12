@@ -29,6 +29,7 @@ def check(username):
                 return True
         return False
 
+
 def createUser(username,password,pubkey):
     '''Create a new stored user
     This module allows the creation of a new user entry in known_hosts as well
@@ -92,6 +93,7 @@ def delUser(username):
         
     return
 
+
 def getPass(username):
     '''Returns the password hash for a user
     This method will return the password hash for a user if that user is in the
@@ -114,3 +116,29 @@ def getPass(username):
                     return None
                 return password
         return None
+
+
+def getPubKey(username):
+    
+    # Check for existance of known_users file
+    if not os.path.exists('known_users'):
+        logging.info('Failed to find known_users. Creating...')
+        open('known_users','w').close()
+        logging,info('Created known_users file')
+        return None
+
+    # Check that the pubkey file exists
+    if not os.path.exists('rsa/{0}.pub'.format(username)):
+        logging.info('Failed to locate public key that should exist')
+        return 'FindFailure'
+
+    # Create Public Key object and return
+    pubkey = RSA.importKey('rsa/{0}.pub'.format(username))
+    return pubkey
+
+
+def pkError(uname):
+    print('CRITICAL: Issue encountered...')
+    print('Failed to locate public key for user: {0}'.format(uname)
+    print('Expected file: rsa/{0}.pub'.format(uname)
+    logging.error('Failed to locate public key file: rsa/{0}.pub'.format(uname)
