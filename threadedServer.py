@@ -10,8 +10,8 @@ makes them easier to maintain. This also helps maintain readability.
 from passlib.hash import bcrypt_sha256
 from remoteInfo import remoteInfo
 import socketserver
-import ServerInfo
 import knownUsers
+import threading
 import getpass
 import socket
 import client
@@ -20,6 +20,7 @@ import Config
 BUFSIZE = 2048
 localInfo = None
 connections = dict()
+currcon = None
 
 #============================================================[ Request Handler ]
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
@@ -163,7 +164,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         eIV  = connections[ip].publicKey.encrypt(IV)
 
         # Send off intent
-        intent 'SS_SET:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
+        intent = 'SS_SET:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
                                                localInfo.PORT,
                                                eIV,
                                                eKey)
@@ -191,12 +192,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         sKey = connections[ip].publicKey.encrypt(pKey)
         sIV  = connections[ip].publicKey.encrypt(pIV)
 
-        intent = 'SS_ACK:{0}:{1}:{2}:{3}'.format(localInfo.HOST
+        intent = 'SS_ACK:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
+                                                 localInfo.PORT,
+                                                 sKey,
+                                                 sIV)
+        sock.sendall(intent)
 
     def req_pass(username,ip,port):
         print('Password requested by {0}:{1} for user: {3}'.format(ip,
                                                             port,
-                                                            username)
+                                                            username))
         pw = bcrypt_sha256(getpass.getpass('Password: '))
         intent = 'PASS_ACK:{0}:{1}:{2}:{3}'.format(username,pw)
 
@@ -255,7 +260,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def con_fin(msg,ip,port):
         print('Connection established with {0}:{1}'.format(ip,port))
-        global currcon = (ip,port)    
+        global currcon
+        currcon = (ip,port)
 
     def msg_decrypt(msg,ip,port):
         '''Decrypt and display an instant message'''
@@ -279,7 +285,8 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 def start_server(serverInfo):
     # Grab and set the HOST and port from config
-    global localInfo = serverInfo # saves to global
+    global localInfo
+    localInfo = serverInfo # saves to global
     PORT = serverInfo.PORT
     HOST = serverInfo.HOST
 
@@ -292,7 +299,7 @@ def start_server(serverInfo):
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True # Exit on main thread exit
         server_thread.start()
-        print('Server started in thread:', serve_thread.name)
+        print('Server started in thread:', server_thread.name)
         print('Listening on port:', port)
         
         return server, server_thread
