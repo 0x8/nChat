@@ -82,7 +82,7 @@ def delUser(username):
             if not line.startswith(username):
                 f.write(line)
     
-    logging('Removed user {0} from known_users'.format(username)
+    logging('Removed user {0} from known_users'.format(username))
 
     # Attempt to remove the publickey file as well
     try:
@@ -139,6 +139,6 @@ def getPubKey(username):
 
 def pkError(uname):
     print('CRITICAL: Issue encountered...')
-    print('Failed to locate public key for user: {0}'.format(uname)
-    print('Expected file: rsa/{0}.pub'.format(uname)
-    logging.error('Failed to locate public key file: rsa/{0}.pub'.format(uname)
+    print('Failed to locate public key for user: {0}'.format(uname))
+    print('Expected file: rsa/{0}.pub'.format(uname))
+    logging.error('Failed to locate public key file: rsa/{0}.pub'.format(uname))
