@@ -51,10 +51,6 @@ class ServerInfo:
             self.privKey = None
             self.pubKey = None
 
-            # Secret Key Stuff
-            self.IV = number.getPrime(16*8) # 16 byte IV
-            self.AESKey = number.getPrime(
-
 
         except KeyError as e:
             log.error('Missing config value in [\'SERVER\']: {0}',e)
