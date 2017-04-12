@@ -8,7 +8,8 @@ responsibility of aggregating and displaying any information to the user as well
 as handling local commands to dispatch the correct information.
 '''
 
-
+import logging
+import socket
 
 welcomemsg = '''\
 [nChat]
@@ -49,8 +50,8 @@ def start_client(serverInfo):
 
         while not isConnected:
             cmd = input(prompt)
-            if cmd.startswith('/connect')
-            commandHandler(cmd)
+            if cmd.startswith('/'):
+                commandHandler(cmd)
 
         # After we have connected look for commands but allow sending
         # if not a command
@@ -92,9 +93,9 @@ def commandHandler(cmd):
             remotePORT = int(cmd_parts[2])
 
             logging.info('Attempting to connect to {0}:{1}'.format(remoteHOST,
-                                                                   remotePORT)
+                                                                   remotePORT))
         except ValueError as e:
-            logging.debug('Received invalid port: {0}'.format(remotePORT)
+            logging.debug('Received invalid port: {0}'.format(remotePORT))
             print('Invalid port for connect: {0}'.format(remotePORT))
             return
         
@@ -110,12 +111,12 @@ def commandHandler(cmd):
                                                 len(servInfo.publickey))
         sock.sendall(intent)
         logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
-                                                                remotePORT)
+                                                                remotePORT))
 
     # >> /nick <new username>
     elif command == 'nick':
         new_user = cmd_parts[1]
-        old_user = 
+        old_user = None 
         servInfo.username = new_user
 
         # Inform remote server of intent to change user
