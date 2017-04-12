@@ -73,7 +73,9 @@ def commandHandler(cmd):
     # Parse the command
     cmd = cmd.lower()
     cmd_parts = cmd.split(' ')
-    command = cmd_parts[0]
+    command = cmd_parts[0][1:]
+    
+    print('GOT CMD:',command)
     
 
     # >> /connect <host> <port>
@@ -86,7 +88,7 @@ def commandHandler(cmd):
         The server handler will set connection status so there is no need to do
         so in here.'''
 
-        
+        print('Correctly entered connect loop')    
         logging.info('Recieved connect command.')
         try:
             remoteHOST = cmd_parts[1]
@@ -98,6 +100,10 @@ def commandHandler(cmd):
             logging.debug('Received invalid port: {0}'.format(remotePORT))
             print('Invalid port for connect: {0}'.format(remotePORT))
             return
+
+        except IndexError as e:
+            logging.debug('Too few commands given to connect command')
+            print('Usage: >> /connect <ip> <port>')
         
         # create the socket and try to connect
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
