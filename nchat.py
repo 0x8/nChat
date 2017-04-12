@@ -9,13 +9,16 @@ will act as the "brain" of the program, tying everything together.
 
 import threadedServer
 import Config
-import Client
+import client
 import logging
 
 
 if __name__ == '__main__':
     # Start logging
     try:                                                                        
+        log_dateformat = '%Y-%m-%dT%H:%M:%S'
+        log_format  = '%(asctime)s | %(levelname)s %(module)s:%(funcName)s'
+        log_format += ':%(lineno)d [%(process)d] | %(message)s'
         import coloredlogs                                                      
     except ImportError:                                                         
         logging.basicConfig(                                                    
@@ -43,15 +46,16 @@ if __name__ == '__main__':
     serverInfo = Config.ServerInfo()
     logging.info('Config parsed successfully')
     logging.info('Starting server on {0}:{1}'.format(serverInfo.HOST,
-                                                     serverInfo.PORT)
+                                                     serverInfo.PORT))
     # Start client and server 
-    server, server_thread = threadedServer.start_server()
+    server, server_thread = threadedServer.start_server(serverInfo)
+    
     if not server:
         logging.error('Failed to start server. Exiting')
         exit('Server creation failed')
     else:
         logging.info('Server started on {0}:{1}'.format(serverInfo.HOST,
-                                                        serverInfo.PORT)
+                                                        serverInfo.PORT))
     
     logging.info('Starting client...')
-    Client.start_client()
+    client.start_client(serverInfo)
