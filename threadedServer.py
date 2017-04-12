@@ -296,7 +296,7 @@ def start_server(serverInfo):
         ip,port = server.server_address
 
         # Start server thread
-        server_thread = threading.Thread(target=server.serve_forever())
+        server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True # Exit on main thread exit
         server_thread.start()
         print('Server started in thread:', server_thread.name)
