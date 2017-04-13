@@ -36,6 +36,7 @@ def start_client(serverInfo):
     logging.info('Client started')
 
     # Set global access to serverInfo
+    global serverInformation 
     serverInformation = serverInfo
 
     isConnected = False
@@ -110,7 +111,7 @@ def commandHandler(cmd):
         intent = 'INIT_CONV:{0}:{1}:{2}'.format(servInfo.HOST,
                                                 servInfo.PORT,
                                                 len(servInfo.publickey))
-        sock.sendall(intent)
+        sock.sendall(bytes(intent,'utf8'))
         logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
                                                                 remotePORT))
 
