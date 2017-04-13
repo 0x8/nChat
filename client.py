@@ -75,9 +75,6 @@ def commandHandler(cmd):
     cmd_parts = cmd.split(' ')
     command = cmd_parts[0][1:]
     
-    print('GOT CMD:',command)
-    
-
     # >> /connect <host> <port>
     if command == 'connect':
         '''Set up a new connection
@@ -88,7 +85,6 @@ def commandHandler(cmd):
         The server handler will set connection status so there is no need to do
         so in here.'''
 
-        print('Correctly entered connect loop')    
         logging.info('Recieved connect command.')
         try:
             remoteHOST = cmd_parts[1]
@@ -107,8 +103,6 @@ def commandHandler(cmd):
         
         # create the socket and try to connect
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #sock.settimeout(0.0) # put into nonblocking mode
-        print('Trying',repr(remoteHOST),repr(remotePORT))
         sock.connect((remoteHOST,remotePORT))
         
         logging.info('Connected')
