@@ -12,10 +12,12 @@ from remoteInfo import remoteInfo
 import socketserver
 import knownUsers
 import threading
+import logging
 import getpass
 import socket
 import client
 import Config
+import os
 
 BUFSIZE = 2048
 localInfo = None
@@ -45,13 +47,13 @@ class server:
             conn, addr = server.accept()
             print('GOT CONNECTION FROM {0}'.format(addr))
             logging.info('Accepted connection from {0}'.format(addr))
-            handle(conn)
+            self.handle(conn)
             conn.close()
 
 #============================================================[ Request Handler ]
 
     # Primary Handling Class
-    def handle(conn):
+    def handle(self,conn):
         '''Handle incoming requests
         This method is called on each remote connection made. The use of global
         is required to reference variables outside of its own scope. This allows
@@ -72,27 +74,27 @@ class server:
         # ---- HAND SHAKE INTENTS ---- #
         # Determine if this is an init:
         if intent == 'INIT_CONV':
-            init_conv(ip,port)
+            self.init_conv(ip,port)
             
         # Respond to INIT, connection establishment
         elif intent == 'INIT_ACK':
-            init_ack(msg,ip,port)
+            self.init_ack(msg,ip,port)
 
         # Got a public key (Remote sent first)
         elif intent == 'PK_SEND':
-            pk_send(msg,ip,port)
+            self.pk_send(msg,ip,port)
 
         # Got a public key (Server sent first)
         elif intent == 'PK_ACK':
-            pk_ack(msg,ip,port)
+            self.pk_ack(msg,ip,port)
 
         # Remote's proposed secret
         elif intent == 'SS_SET':
-            ss_set(msg,ip,port)
+            self.ss_set(msg,ip,port)
 
         # Local acknowledging remote's secret
         elif intent == 'SS_ACK':
-            ss_ack(msg,ip,port)
+            self.ss_ack(msg,ip,port)
     
         
         # ---- AUTHENTICATION INTENTS ---- # 
@@ -115,11 +117,11 @@ class server:
 
         intent = 'INIT_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
                                                localInfo.PORT,
-                                               len(localInfo.pubKey))
-        sock.sendall(intent)
+                                               len(localInfo.publickey))
+        sock.sendall(bytes(intent,'utf8'))
 
 
-    def init_ack(msg,ip,port):
+    def init_ack(self,msg,ip,port):
         '''Handle receiving the init acknowledgement. Reply PK_SEND'''
         username = msg.split(':')[3]
         
@@ -130,22 +132,22 @@ class server:
                                                    username)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #sock.settimeout(0.0)
-            sock.sendall(intent)
+            sock.sendall(bytes(intent,'utf8'))
 
         else:
             # Set user in information
             connections[ip].username = username
             intent = 'PK_SEND:{0}:{1}:{2}'.format(localInfo.HOST,
                                                   localInfo.PORT,
-                                                  localInfo.pubKey)
+                                                  localInfo.publickey)
             
             sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             #sock.settimeout(0.0)
             sock.connect((ip,port))
-            sock.sendall(intent)
+            sock.sendall(bytes(intent,'utf8'))
 
     
-    def pk_send(msg,ip,port):
+    def pk_send(self,msg,ip,port):
         '''After receiving pk_send, do a pk_ack and supply own public key'''
         # Set remote public key
         pubkey = msg.split(':')[2]
@@ -159,11 +161,11 @@ class server:
         # Craft intent
         intent = 'PK_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
                                              localInfo.PORT,
-                                             localInfo.pubKey)
-        sock.sendall(intent)
+                                             localInfo.publickey)
+        sock.sendall(bytes(intent,'utf8'))
 
 
-    def pk_ack(msg,ip,port):
+    def pk_ack(self,msg,ip,port):
         '''Acknowledge pubkeys have been swapped, set up shared secret
            using the stored public key'''
     
@@ -193,10 +195,10 @@ class server:
                                                localInfo.PORT,
                                                eIV,
                                                eKey)
-        sock.sendall(intent)
+        sock.sendall(bytes(intent,'utf8'))
 
 
-    def ss_set(msg,ip,port):
+    def ss_set(self,msg,ip,port):
 
         # Socket Creation
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -221,9 +223,9 @@ class server:
                                                  localInfo.PORT,
                                                  sKey,
                                                  sIV)
-        sock.sendall(intent)
+        sock.sendall(bytes(intent,'utf8'))
 
-    def req_pass(username,ip,port):
+    def req_pass(self,username,ip,port):
         print('Password requested by {0}:{1} for user: {3}'.format(ip,
                                                             port,
                                                             username))
@@ -234,10 +236,10 @@ class server:
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         #sock.settimeout(0.0)
         sock.connect((ip,port))
-        sock.sendall(intent)
+        sock.sendall(bytes(intent,'utf8'))
     
 
-    def pass_ack(msg,ip,port):
+    def pass_ack(self,msg,ip,port):
         
         # Parse uname and password hash
         username = msg.split(':')[2]
@@ -280,15 +282,15 @@ class server:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             #sock.settimeout(0.0)
             sock.connect((ip,port))
-            sock.sendall(intent)
+            sock.sendall(bytes(intent,'utf8'))
 
 
-    def con_fin(msg,ip,port):
+    def con_fin(self,msg,ip,port):
         print('Connection established with {0}:{1}'.format(ip,port))
         global currcon
         currcon = (ip,port)
 
-    def msg_decrypt(msg,ip,port):
+    def msg_decrypt(self,msg,ip,port):
         '''Decrypt and display an instant message'''
         IV = connections[ip].IV
         Key = connections[ip].Key
