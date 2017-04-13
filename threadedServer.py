@@ -22,18 +22,43 @@ localInfo = None
 connections = dict()
 currcon = None
 
+class server:
+
+    def __init__(self,ip,port):
+        if not isinstance(port,int):
+            try:
+                self.port = int(port)
+            except ValueError as e:
+                print(e)
+                print('Invalid format for port. Must be int')
+        self.port = port
+        self.ip = ip
+
+    def serve(self):
+        # Create the server socket and bind to the configured IP and port
+        server = socket.socket()
+        server.bind((self.ip,self.port))
+        
+        # Start listening, accept incoming connections and pass them to handle
+        server.listen(5)
+        while True:
+            conn, addr = server.accept()
+            print('GOT CONNECTION FROM {0}'.format(addr))
+            logging.info('Accepted connection from {0}'.format(addr))
+            handle(conn)
+            conn.close()
+
 #============================================================[ Request Handler ]
-class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     # Primary Handling Class
-    def handle(self):
+    def handle(conn):
         '''Handle incoming requests
         This method is called on each remote connection made. The use of global
         is required to reference variables outside of its own scope. This allows
         for keeping track of the client between requests.
         '''
         
-        msg = str(self.request.recv(BUFSIZE),'utf8')
+        msg = str(conn.recv(BUFSIZE),'utf8')
         intent  = msg.split(':')[0]
         ip,port = msg.split(':')[1],int(msg.split(':')[2])
         
@@ -289,16 +314,8 @@ def start_server(serverInfo):
     localInfo = serverInfo # saves to global
     PORT = serverInfo.PORT
     HOST = serverInfo.HOST
-
-    # Create the server object and start the thread
-    server = ThreadedTCPServer((HOST,PORT),ThreadedTCPRequestHandler)
-    with server:
-        ip,port = server.server_address
-
-        # Start server thread
-        server_thread = threading.Thread(target=server.serve_forever)
-        server_thread.daemon = True # Exit on main thread exit
-        server_thread.start()
-        print('Server started in thread:', server_thread.name)
-        print('Listening on port:', port)
-            
+    
+    # Create a thread for the server in the background:
+    pServer = server(HOST,PORT)
+    serv_thread = threading.Thread(target=pServer.serve)
+    serv_thread.start()
