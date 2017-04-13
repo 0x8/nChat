@@ -10,7 +10,7 @@ sort of memory
 
 class remoteInfo:
 
-    def __init__():
+    def __init__(self):
         self.HOST = None
         self.PORT = None
         self.username = None
