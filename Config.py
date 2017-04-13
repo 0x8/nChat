@@ -49,7 +49,7 @@ class ServerInfo:
             
             # Public Key Stuff
             self.privKey = None
-            self.pubKey = None
+            self.publickey = None
 
 
         except KeyError as e:
@@ -85,7 +85,7 @@ class ServerInfo:
             with open(filepath+'.pub','wb') as f:
                 f.write(bytes(self.rsa.publickey().exportKey('PEM')))
                 log.info('Saved public key to {0}.pub'.format(filepath))
-                self.pubKey = self.rsa.publickey().exportKey('PEM')
+                self.publickey = self.rsa.publickey().exportKey('PEM')
 
         else:
             # Import the key from the rsa_dir
@@ -98,7 +98,7 @@ class ServerInfo:
                     self.privKey = RSA.importKey(f.read())
                     
                 with open(self.rsa_dir+'.pub','wb') as f:
-                    self.pubKey = RSA.importkey(f.read())
+                    self.publickey = RSA.importkey(f.read())
                     log.info('Key imported')
 
             except FileNotFoundError as e:
