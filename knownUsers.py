@@ -23,7 +23,7 @@ def check(username):
         return False
 
     # Otherwise read the file and search
-    with open('known_hosts','r') as f:
+    with open('known_users','r') as f:
         for line in f.readlines():
             if line.startswith(username):
                 return True
@@ -32,7 +32,7 @@ def check(username):
 
 def createUser(username,password,pubkey):
     '''Create a new stored user
-    This module allows the creation of a new user entry in known_hosts as well
+    This module allows the creation of a new user entry in known_users as well
     as ensuring their public key gets cached for use in the future.
     '''
 
