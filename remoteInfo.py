@@ -31,7 +31,7 @@ class remoteInfo:
         
         str_rep += 'key:{0}\nIV:{1}\n'.format(self.key, self.IV)
         
-        str_rep += 'Authed:{0}\n'.format(Authed)
+        str_rep += 'Authed:{0}\n'.format(self.Authed)
 
         return str_rep
 
