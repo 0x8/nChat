@@ -7,9 +7,12 @@ This module handles the known_users file. It provides an interface to read,
 write to, and keep track of the file.
 '''
 
+from Crypto.PublicKey import RSA
 import fileinput
 import logging
 import os
+
+logging.getLogger()
 
 def check(username):
     '''Checks if a user is in the known_users file'''
@@ -54,7 +57,8 @@ def createUser(username,password,pubkey):
         f.write('{0}:{1}'.format(username,password))
 
     # Write out the pubkey too
-    with open('rsa/{0}.pub'.format(username),'w') as f:
+    with open('rsa/{0}.pub'.format(username),'wb') as f:
+        print('pubkey:',pubkey)
         f.write(pubkey.exportKey('PEM'))
 
 
@@ -82,16 +86,25 @@ def delUser(username):
             if not line.startswith(username):
                 f.write(line)
     
-    logging('Removed user {0} from known_users'.format(username))
+    logging.info('Removed user {0} from known_users'.format(username))
 
     # Attempt to remove the publickey file as well
     try:
         os.remove('rsa/{0}.pub'.format(username))
     except FileNotFoundError as e:
         print('No public key found for {0}'.format(username))
-        logging('Public key for {0} does not exist'.format(username))
+        logging.info('Public key for {0} does not exist'.format(username))
         
     return
+
+def getSalt(username):
+    '''Returns the salt for username if it exits, None otherwise.'''
+    
+    passwordHash = getPass(username)
+    if passwordHash == None or passwordHash == '-':
+        return None
+    else:
+        return passwordHash.split('$')[3]
 
 
 def getPass(username):
@@ -130,10 +143,14 @@ def getPubKey(username):
     # Check that the pubkey file exists
     if not os.path.exists('rsa/{0}.pub'.format(username)):
         logging.info('Failed to locate public key that should exist')
-        return 'FindFailure'
+        pkError(username)
+        return None
 
     # Create Public Key object and return
-    pubkey = RSA.importKey('rsa/{0}.pub'.format(username))
+    with open('rsa/{0}.pub'.format(username),'r') as f:
+        pubkey = RSA.importKey(f.read())
+    
+    logging.info('Found and imported public key for user: {0}'.format(username))
     return pubkey
 
 
