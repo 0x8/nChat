@@ -10,6 +10,7 @@ as handling local commands to dispatch the correct information.
 
 import logging
 import socket
+import knownUsers
 
 welcomemsg = '''\
 [nChat]
@@ -23,8 +24,11 @@ For other options, please type /help.
 '''
 
 serverInformation = None
+serverInstance = None
 
-def start_client(serverInfo):
+logging.getLogger()
+
+def start_client(serverInfo,ts):
     '''Starts the client and begins prompts
     This method is the "main" of the client. It prints the welcome message and
     starts the frontend interface for the client portion of the program. It
@@ -38,6 +42,10 @@ def start_client(serverInfo):
     # Set global access to serverInfo
     global serverInformation 
     serverInformation = serverInfo
+    
+    # Set global access to serverInstance
+    global serverInstance
+    serverInstance = ts
 
     isConnected = False
     prompt = '>> '
@@ -48,20 +56,23 @@ def start_client(serverInfo):
 
     # Main chat loop, constantly reprompts for input
     while True:
-
-        while not isConnected:
-            cmd = input(prompt)
-            if cmd.startswith('/'):
-                commandHandler(cmd)
-
-        # After we have connected look for commands but allow sending
-        # if not a command
-        msg = input(prompt)
-        if msg.startswith('/'):
-            commandHandler(msg)
+        
+        # Grab the state of the server and do not prompt
+        # the user for input until the handshake is done
+        inHS = ts.getState()
+        if inHS:
+            logging.debug('Suppresed prompt')
+            continue
+        
         else:
-            sendMsg(msg)
-
+            # Grab message and check if it is a command
+            msg = input(prompt)
+        
+            if msg.startswith('/'):
+                commandHandler(msg)
+        
+            else:
+                serverInstance.send(msg)
 
 def commandHandler(cmd):
     '''Handles parsing and execution of commands
@@ -90,10 +101,36 @@ def commandHandler(cmd):
         try:
             remoteHOST = cmd_parts[1]
             remotePORT = int(cmd_parts[2])
+            
+            if remotePORT < 1000 and remotePORT >= 0:
+                print('Please note running on a port under 1000 require root.')
+                
+            if remotePORT > 65535 or remotePORT < 0:
+                print('Port must be less than 65535')
+                raise ValueError
 
             logging.info('Attempting to connect to {0}:{1}'.format(remoteHOST,
                                                                    remotePORT))
+        
+            
+            # create the socket and try to connect
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((remoteHOST,remotePORT))
+            
+            logging.info('Connected')
+
+            intent = 'INIT_CONV:{0}:{1}:{2}'.format(servInfo.HOST,
+                                                    servInfo.PORT,
+                                                    servInfo.username)
+            sock.sendall(bytes(intent,'utf8'))
+            logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
+                                                                    remotePORT))
+
+            # Force server into handshake mode
+            ts.setState(True)
+            
         except ValueError as e:
+            remotePORT = cmd_parts[2]
             logging.debug('Received invalid port: {0}'.format(remotePORT))
             print('Invalid port for connect: {0}'.format(remotePORT))
             return
@@ -101,19 +138,8 @@ def commandHandler(cmd):
         except IndexError as e:
             logging.debug('Too few commands given to connect command')
             print('Usage: >> /connect <ip> <port>')
-        
-        # create the socket and try to connect
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((remoteHOST,remotePORT))
-        
-        logging.info('Connected')
+    
 
-        intent = 'INIT_CONV:{0}:{1}:{2}'.format(servInfo.HOST,
-                                                servInfo.PORT,
-                                                len(servInfo.publickey))
-        sock.sendall(bytes(intent,'utf8'))
-        logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
-                                                                remotePORT))
 
     # >> /nick <new username>
     elif command == 'nick':
