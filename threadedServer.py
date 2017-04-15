@@ -541,7 +541,12 @@ class server:
         # MSG:IP:PORT:Message <- Intent
         msg = msg.split(':')[3]
         
-        print('Encrypted MSG:',msg)
+        # Convert to bytes
+        logging.debug('Msg len prior to bytes conversion: {0}'.format(len(msg)))
+        bytes(msg,'utf8')
+        logging.debug('Msg len after bytes conversion: {0}'.format(len(msg)))
+
+        logging.debug('Encrypted Msg: {0}'.format(msg))
         
         decryptor = AES.new(Key ,AES.MODE_CBC, IV)
         msg = decryptor.decrypt(msg)
@@ -619,11 +624,11 @@ def send(msg):
     encryptor = AES.new(aesKey, AES.MODE_CBC, aesIV)
     
     # Pad the message then encrypt
+    logging.debug('Sent plaintext: {0}'.format(msg))
     msg = lpad(msg)
     cMsg = encryptor.encrypt(msg)
-    
-    print('Padded plain:',msg)
-    print('cMsg:',cMsg)
+    logging.debug('Sent padded plaintext: {0}'.format(msg)) 
+    logging.debug('Sent encrypted message: {0}'.format(cMsg))
 
     # Craft intent
     intent = 'MSG:{0}:{1}:{2}'.format(localInfo.HOST,
