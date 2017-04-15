@@ -27,9 +27,11 @@ serverInformation = None
 serverInstance = None
 logging.getLogger()
 
+global ts
 
 
-def start_client(serverInfo,ts):
+
+def start_client(serverInfo, tserv):
     '''Starts the client and begins prompts
     This method is the "main" of the client. It prints the welcome message and
     starts the frontend interface for the client portion of the program. It
@@ -44,9 +46,8 @@ def start_client(serverInfo,ts):
     global serverInformation 
     serverInformation = serverInfo
     
-    # Set global access to serverInstance
-    global serverInstance
-    serverInstance = ts
+    # Set global access to server instance
+    ts = tserv
 
     isConnected = False
     prompt = '>> '
@@ -129,7 +130,7 @@ def commandHandler(cmd):
                 servInfo.HOST,
                 servInfo.PORT,
                 servInfo.username,
-                str(servInfo.publickey.exportKey('PEM'), 'utf8')
+                str(servInfo.publickey.exportKey('PEM'), 'utf8'))
 
             sock.sendall(bytes(intent,'utf8'))
             logging.info('Intent to connect sent to {0}:{1}'.format(
