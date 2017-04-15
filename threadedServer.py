@@ -568,7 +568,7 @@ class server:
         
         # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
-        passhash = self.decrypt(passhash)
+        passhash = self.decrypt(ip, passhash)
         logging.debug('Recieved remote hash: {0}'.format(passhash))
         
         logging.debug('Entered known user state')
@@ -621,7 +621,7 @@ class server:
         
         # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
-        passhash = self.decrypt(passhash)
+        passhash = self.decrypt(ip, passhash)
         
         # Set the public key
         pubkey = connections[ip].publicKey
