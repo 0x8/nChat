@@ -35,7 +35,6 @@ myKey = None
 myIV  = None
 
 # For determining if handshake is occuring
-global inHandshake
 inHandshake = False
 
 # Getting root logger for config purposes
@@ -86,6 +85,8 @@ class server:
         for keeping track of the client between requests.
         '''
         
+        global inHandshake
+
         MSG = conn.recv(BUFSIZE)
         msg = str(MSG,'utf8')
         intent  = msg.split(':')[0]
@@ -105,11 +106,12 @@ class server:
         # Determine if this is an init:
         if intent == 'INIT_CONV':
             inHandshake = True
+            logging.debug('Updated inHandshake')
+            logging.debug('inHandshake: {0}'.format(inHandshake))
             self.init_conv(msg, ip, port)
             
         # Respond to INIT, connection establishment
         elif intent == 'INIT_ACK':
-            inHandshake = True
             self.init_ack(msg, ip, port)
 
         # Got a public key (Remote sent first)
@@ -503,9 +505,10 @@ class server:
         format of response: AUTH_SETNEW:IP:PORT:USER:HASH
             note: HASH is AES encrypted base64
         '''
-        
+        global inHandshake
+        logging.debug('inHandshake: {0}'.format(inHandshake))
         # Get the username
-        username = connections[ip].username
+        username = msg.split(':')[3]
         print('Password requested by {0}:{1} for new user: {2}'.format(
             ip,
             port,
@@ -541,9 +544,11 @@ class server:
         # Socket creation
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
             sock.connect((ip, port))
-            sock.sendall(bytes(intent, 'utf8'))
+            sock.sendall(bytes(intent, 'utf8')) 
+            logging.debug('SENT INTENT: {0}'.format(intent))
         
         # Also call auth_req if the user has not authed yet
+        logging.debug('Asking remote to auth')
         if not connections[ip].Authed:
             self.auth_req(msg, ip, port, 0)
 
@@ -597,7 +602,9 @@ class server:
             connections[ip].Authed = True
 
             # Release handshake
+            global inHandshake
             inHandshake = False
+
         
 
         # Call the request again but as if it were requested remote
@@ -628,32 +635,40 @@ class server:
 
         # Create the new user
         knownUsers.createUser(username, passhash, pubkey)
-
+        logging.debug('Created new user: {0}'.format(username))
+    
         # Set currcon and send CON_EST
         currcon = (ip, port)
+        logging.debug('Currcon: {0}'.format(currcon))
         intent = 'CON_EST:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect((ip, port))
             sock.sendall(bytes(intent, 'utf8'))
 
+        logging.debug('SENT INTENT: {0}'.format(intent))
+
         est_msg  = 'Connection established with '
         est_msg += '{0}:{1}'.format(ip,port)
         logging.debug(est_msg)
         
         # Set authed
+        logging.debug('Setting connection to Authed')
         connections[ip].Authed = True
 
         # Release the handshake
+        global inHandshake
         inHandshake = False
-    
 
 
     def con_est(self,msg,ip,port):
         print('Connection established with {0}:{1}'.format(ip,port))
         global currcon
+        
         currcon = (ip,port)
+        logging.debug('Currcon set to: {0}'.format(currcon))
         inHandshake = False
+        logging.debug('inHandshake: {0}'.format(inHandshake))
 
 
 
@@ -663,19 +678,19 @@ class server:
         Key = connections[ip].key
         nick = connections[ip].username
 
+        logging.debug('inHandshake: {0}'.format(inHandshake))
+        
         # MSG:IP:PORT:Message <- Intent
         msg = msg.split(':')[3]
         
-        # Convert to bytes
-        logging.debug('Msg len prior to bytes conversion: {0}'.format(len(msg)))
-        bytes(msg,'utf8')
-        logging.debug('Msg len after bytes conversion: {0}'.format(len(msg)))
-
+        # Base64 decode the message
+        msg = base64.b64decode(msg)
         logging.debug('Encrypted Msg: {0}'.format(msg))
         
+        # Decrypt the message
         decryptor = AES.new(Key ,AES.MODE_CBC, IV)
-        msg = decryptor.decrypt(msg)
-
+        msg = decryptor.decrypt(msg).strip(b'\x00')
+        msg = str(msg, 'utf8') 
         print(nick + ':',msg)
 
     
@@ -690,7 +705,7 @@ class server:
 
 
     def unpad(self,msg):
-        return msg.strip(b'\x00')
+        return msg.strip('\x00')
 
 
     def decrypt(self,ip,msg):
@@ -702,8 +717,9 @@ class server:
 
         # Decrypt message then remove padding
         msg = decryptor.decrypt(msg)
+        msg = str(msg, 'utf8')
         msg = self.unpad(msg)
-        return str(msg,'utf8')
+        return msg
 
 
     def encrypt(self,ip,msg):
@@ -729,6 +745,7 @@ def send(msg):
     
     # Try to pull the ip and port. If these are None, the connection has not yet
     # been established and the client must do /connect.
+    global inHandshake
     try:
         global currcon
         ip,port = currcon
@@ -755,10 +772,14 @@ def send(msg):
     logging.debug('Sent padded plaintext: {0}'.format(msg)) 
     logging.debug('Sent encrypted message: {0}'.format(cMsg))
 
+    # Base64 encode the message for transmission
+    cMsg = base64.b64encode(cMsg)
+
     # Craft intent
-    intent = 'MSG:{0}:{1}:{2}'.format(localInfo.HOST,
-                                      localInfo.PORT,
-                                      cMsg)
+    intent = 'MSG:{0}:{1}:{2}'.format(
+        localInfo.HOST,
+        localInfo.PORT,
+        str(cMsg, 'utf8'))
 
     # Send it off
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
@@ -781,11 +802,13 @@ def lpad(msg):
 
 
 def getState():
+    global inHandshake
     return inHandshake
 
 
 
 def setState(state):
+    global inHandshake
     inHandshake = state
 
 #===============================================================[ Server Class ]
