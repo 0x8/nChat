@@ -25,8 +25,9 @@ For other options, please type /help.
 
 serverInformation = None
 serverInstance = None
-
 logging.getLogger()
+
+
 
 def start_client(serverInfo,ts):
     '''Starts the client and begins prompts
@@ -74,6 +75,8 @@ def start_client(serverInfo,ts):
             else:
                 serverInstance.send(msg)
 
+
+
 def commandHandler(cmd):
     '''Handles parsing and execution of commands
     This method is responsible for parsing any commands the user creates and
@@ -105,12 +108,14 @@ def commandHandler(cmd):
             if remotePORT < 1000 and remotePORT >= 0:
                 print('Please note running on a port under 1000 require root.')
                 
+            
             if remotePORT > 65535 or remotePORT < 0:
                 print('Port must be less than 65535')
                 raise ValueError
 
-            logging.info('Attempting to connect to {0}:{1}'.format(remoteHOST,
-                                                                   remotePORT))
+            logging.info('Attempting to connect to {0}:{1}'.format(
+                remoteHOST,
+                remotePORT))
         
             
             # create the socket and try to connect
@@ -118,23 +123,34 @@ def commandHandler(cmd):
             sock.connect((remoteHOST,remotePORT))
             
             logging.info('Connected')
+            
+            # Give username and publickey to remote host
+            intent = 'INIT_CONV:{0}:{1}:{2}:{3}'.format(
+                servInfo.HOST,
+                servInfo.PORT,
+                servInfo.username,
+                servInfo.publickey.exportKey('PEM'))
 
-            intent = 'INIT_CONV:{0}:{1}:{2}'.format(servInfo.HOST,
-                                                    servInfo.PORT,
-                                                    servInfo.username)
             sock.sendall(bytes(intent,'utf8'))
-            logging.info('Intent to connect sent to {0}:{1}'.format(remoteHOST,
-                                                                    remotePORT))
+            logging.info('Intent to connect sent to {0}:{1}'.format(
+                remoteHOST,
+                remotePORT))
 
             # Force server into handshake mode
+            print("Attempting to connect to {0}:{1}".format(
+                remoteHOST,
+                remotePORT)
+
             ts.setState(True)
             
+
         except ValueError as e:
             remotePORT = cmd_parts[2]
             logging.debug('Received invalid port: {0}'.format(remotePORT))
             print('Invalid port for connect: {0}'.format(remotePORT))
             return
 
+    
         except IndexError as e:
             logging.debug('Too few commands given to connect command')
             print('Usage: >> /connect <ip> <port>')
@@ -152,6 +168,8 @@ def commandHandler(cmd):
         #sock.settimeout(0.0) # Non-blocking
         sock.connect((remoteHOST,remotePORT))
         
-        intent = 'NICK_CHANGE:{0}:{1}:{2}'.format(servInfo.HOST,
-                                                  servInfo.PORT,
-                                                  servInfo.username)
+        intent = 'NICK_CHANGE:{0}:{1}:{2}'.format(
+            servInfo.HOST,
+            servInfo.PORT,
+            servInfo.username)
+
