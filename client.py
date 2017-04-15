@@ -139,7 +139,7 @@ def commandHandler(cmd):
             # Force server into handshake mode
             print("Attempting to connect to {0}:{1}".format(
                 remoteHOST,
-                remotePORT)
+                remotePORT))
 
             ts.setState(True)
             
