@@ -43,28 +43,35 @@ logging.getLogger()
 
 class server:
 
-    def __init__(self,ip,port):
-        if not isinstance(port,int):
+    def __init__(self, ip, port):
+        
+        # Verify that the port is an integer or can be made INTO an integer
+        if not isinstance(port, int):
+            
             try:
                 self.port = int(port)
+            
             except ValueError as e:
                 print(e)
                 print('Invalid format for port. Must be int')
+        
+        # Set local IP and PORT
         self.port = port
         self.ip = ip
+
 
 
     def serve(self):
         # Create the server socket and bind to the configured IP and port
         server = socket.socket()
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
-        server.bind((self.ip,self.port))
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.ip, self.port))
         
         # Start listening, accept incoming connections and pass them to handle
         server.listen(5)
         while True:
             conn, addr = server.accept()
-            logging.info('Accepted connection from {0}'.format(addr))
+            #logging.info('Accepted connection from {0}'.format(addr))
             self.handle(conn)
             conn.close()
 
@@ -72,7 +79,7 @@ class server:
 
 
     # Primary Handling Class
-    def handle(self,conn):
+    def handle(self, conn):
         '''Handle incoming requests
         This method is called on each remote connection made. The use of global
         is required to reference variables outside of its own scope. This allows
@@ -84,6 +91,9 @@ class server:
         intent  = msg.split(':')[0]
         ip,port = msg.split(':')[1],int(msg.split(':')[2])
         
+        logging.debug('Got intent: {0}'.format(intent))
+        logging.debug('Msg: {0}'.format(msg))
+
         # Add connection to dict and set up information
         if ip not in connections.keys():
             connections[ip] = remoteInfo()
@@ -95,125 +105,114 @@ class server:
         # Determine if this is an init:
         if intent == 'INIT_CONV':
             inHandshake = True
-            self.init_conv(msg,ip,port)
+            self.init_conv(msg, ip, port)
             
         # Respond to INIT, connection establishment
         elif intent == 'INIT_ACK':
-            self.init_ack(msg,ip,port)
+            inHandshake = True
+            self.init_ack(msg, ip, port)
 
         # Got a public key (Remote sent first)
         elif intent == 'PK_SEND':
-            self.pk_send(msg,ip,port)
+            self.pk_send(msg, ip, port)
 
         # Got a public key (Server sent first)
         elif intent == 'PK_ACK':
-            self.pk_ack(msg,ip,port)
+            self.pk_ack(msg, ip, port)
 
         # Remote's proposed secret
         elif intent == 'SS_SET':
-            self.ss_set(msg,ip,port)
+            self.ss_set(msg, ip, port)
 
         # Local acknowledging remote's secret
         elif intent == 'SS_ACK':
-            self.ss_ack(msg,ip,port)
+            self.ss_ack(msg, ip, port)
     
         
         # ---- AUTHENTICATION INTENTS ---- # 
 
-        elif intent == 'REQ_PASS':
-            self.req_pass(msg,ip,port)
+        elif intent == 'AUTH_REQ':
+            self.auth_req(msg, ip, port, 1)
+
+        elif intent == 'REQ_NEWAUTH':
+            self.req_newauth(msg, ip, port)
         
-        elif intent == 'KNOWN_AUTH':
-            self.known_auth(msg,ip,port)
+        elif intent == 'REQ_KNOWN':
+            self.req_known(msg, ip, port)
 
-        elif intent == 'PASS_ACK':
-            self.pass_ack(msg,ip,port)
+        elif intent == 'AUTH_SETNEW':
+            self.auth_setnew(msg, ip, port)
 
-        elif intent == 'CON_FIN':
-            self.con_fin(msg,ip,port)
+        elif intent == 'AUTH_VERIFY':
+            self.auth_verify(msg, ip, port)
+
+        elif intent == 'CON_EST':
+            self.con_est(msg, ip, port)
+
 
         # ---- CONVERSATIONAL INTENTS ---- #
         elif intent == 'MSG':
-            self.mdecrypt(msg,ip,port)
+            self.mdecrypt(msg, ip, port)
+
 
 
     def init_conv(self, msg, ip, port):
         '''Handle the initial connection to client
-        Sends INIT_ACK back to the connecting clients server to initiale key
-        exhange and setup.
+        Responds with INIT_ACK and sends this clients information to the remote
+        connector. This includes the public key as I see no need to make this
+        its own message.
+
+        Format of intent recieved:
+        INIT_CONV:IP:PORT:USERNAME:PUBKEY
         '''
         
-        # Pull and set remote username:
+        # Pull and set remote username and public key
         username = msg.split(':')[3]
-        connections[ip].username = username
-
-        # Craft intent 
-        intent = 'INIT_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
-                                               localInfo.PORT,
-                                               localInfo.username)
+        pubkey   = msg.split(':')[4]
+        connections[ip].username  = username
+        connections[ip].publicKey = RSA.importKey(pubkey)
         
+        # Craft intent 
+        intent = 'INIT_ACK:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            localInfo.username,
+            localInfo.publickey.exportKey('PEM'))
+
         # handshake
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
             sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
+            sock.sendall(bytes(intent, 'utf8'))
 
 
-    def init_ack(self,msg,ip,port):
-        '''Handle receiving the init acknowledgement. Reply PK_SEND'''
+
+    def init_ack(self, msg, ip, port):
+        '''Handle receiving the init acknowledgement. Reply PK_SEND
+        Responds with SS_SEND and generates remotekeys to be used for this
+        session (AES Key and AES IV, both 16 bytes and random). These get
+        cached locally then encrypted with the remote server's public key
+        and sent off. This allows some checking of eavesdropping as it should be
+        trivial to decrypt, re-encrypt and return the same data (from the remote
+        client) if they have the private key associated with the provided public
+        key.
+
+        IMPORTANT: This step MAY be spoofed with an attackers public key instead
+        but this does not matter as  all keys and IVs are random and per 
+        session, possesion of one does not allow anything more than 
+        participating in that particular session. That said, there is no
+        gaurantee that a Man-in-the-middle can not intercept and manipulate
+        earlier handshake steps and as such only trusted networks should be used
+        unless another form of security is also available on top of this (such
+        as a VPN). I know how to fix this but it would require more changes that
+        I unfortunately do not have time to implement.
+        '''
         
-        # Grab username
+        # Pull and set remote username and public key
         username = msg.split(':')[3]
-        
-        # Short circuit doesn't work well right now
-        """
-        # Short cirtuit the handshake if this user is known
-        if knownUsers.check(username):
-            intent = 'REQ_PASS:{0}:{1}:{2}'.format(localInfo.HOST,
-                                                   localInfo.PORT,
-                                                   username)
-           
-            # Socket
-            with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-                sock.connect((ip,port))
-                sock.sendall(bytes(intent,'utf8'))
-        """
-        #else:
-        # Set user in information
-        connections[ip].username = username
-        intent = 'PK_SEND:{0}:{1}:{2}'.format(localInfo.HOST,
-                                            localInfo.PORT,
-                                            str(localInfo.publickey,'utf8'))
-        
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
-    
-    def pk_send(self,msg,ip,port):
-        '''After receiving pk_send, do a pk_ack and supply own public key'''
-        
-        # Set remote public key
-        pubkey = msg.split(':')[3]
-        connections[ip].publicKey = RSA.importKey(pubkey,'PEM')
-        
-        # Craft intent
-        intent = 'PK_ACK:{0}:{1}:{2}'.format(localInfo.HOST,
-                                             localInfo.PORT,
-                                             str(localInfo.publickey,'utf8'))
-        
-        # Socket setup
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
-
-
-    def pk_ack(self,msg,ip,port):
-        '''Acknowledge pubkeys have been swapped, set up shared secret
-           using the stored public key'''
-    
-        # Set remote pubkey
-        pubkey = msg.split(':')[3]
+        pubkey   = msg.split(':')[4]
+        connections[ip].username  = username
         connections[ip].publicKey = RSA.importKey(pubkey)
-
+        
         # Generate the IV and KEY as random 16 bytes
         Key = os.urandom(16)
         IV  = os.urandom(16)
@@ -241,24 +240,25 @@ class server:
         eIV  = str(eIV,  'utf8')
        
         # Send off intent
-        intent = 'SS_SET:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
-                                                 localInfo.PORT,
-                                                 eIV,
-                                                 eKey)
+        intent = 'SS_SET:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            eIV,
+            eKey)
 
-        # Set up socket
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock: 
+        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
             sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
+            sock.sendall(bytes(intent, 'utf8'))
     
+   
 
-    def ss_set(self,msg,ip,port):
+    def ss_set(self, msg, ip, port):
 
-        # Get IV and Key
+        # Get encrypted IV and Key
         cIV  = msg.split(':')[3]
         cKey = msg.split(':')[4]
         
-        # Convert back from base64 and decrypt
+        # Convert back from base64 and decrypt them
         pIV  = localInfo.privKey.decrypt(base64.b64decode(cIV))
         pKey = localInfo.privKey.decrypt(base64.b64decode(cKey))
 
@@ -273,15 +273,16 @@ class server:
         sKey = str(base64.b64encode(sKey),'utf8')
         sIV  = str(base64.b64encode(sIV),'utf8')
 
-        intent = 'SS_ACK:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
-                                                 localInfo.PORT,
-                                                 sKey,
-                                                 sIV) 
-        
+        intent = 'SS_ACK:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            sKey,
+            sIV) 
+
         # Socket Creation
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
             sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
+            sock.sendall(bytes(intent, 'utf8'))
 
 
 
@@ -299,57 +300,156 @@ class server:
         # Test for equality to expected values
         # This basically ensures that what was sent is what was received
         if not pKey == myKey or not pIV == myIV:
-            print('Key and IV potentially not the same')
-            print('Printing them for manual inspection')
-            print('pKey:',pKey)
-            print('myKey:',myKey)
-            print('pIV:',pIV)
-            print('myIV:',myIV)
-            # FIX ME: abort connection on bad key
-
-        else:
-            print('Key exchange verified. Requesting password')
-       
-        # Get username to check for knonw user
-        username = connections[ip].username
-        
-        # Check if user exists:
-        if knownUsers.check(username):
-            '''user exists, check pass to set values'''
-
-            logging.debug('Entered user exists state')
-
-            # Get salt
-            salt = knownUsers.getSalt(username)
-            logging.debug('Using Salt: {0}'.format(salt))
-
-            # Craft and send intent to auth a known user
-            intent = 'KNOWN_AUTH:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
-                                                         localInfo.PORT,
-                                                         username,
-                                                         salt)
-
-            with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-                sock.connect((ip,port))
-                sock.sendall(bytes(intent,'utf8'))
             
+            # Log some debugging information:
+            logging.debug('Key and IV potentially changed')
+            logging.debug('Printing them for manual inspection:')
+            logging.debug('pKey:  {0}'.format(pKey))
+            logging.debug('myKey: {0}'.format(myKey))
+            logging.debug('pIV:   {0}'.fomrat(pIV))
+            logging.debug('myIV:  {0}'.format(myIV))
+            
+            # Craft abortion intent and tell the remote client
+            logging.debug('Aborting connection')
+            intent = "CON_ABRT"
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((ip, port))
+                sock.sendall(bytes(intent, 'utf8'))
+                
+            # Delete current client information
+            del connections[ip]
+            logging.debug('Aborted connection')
             return
 
+        # Remote public key verified and AES information exchanged
         else:
-            username = connections[ip].username
-            intent = 'REQ_PASS:{0}:{1}:{2}'.format(localInfo.HOST,
-                                                localInfo.PORT,
-                                                username)
+            '''If control has reached here, it means that the public key and AES
+            information were properly verified. At this point, this client can
+            request to auth to the remote server using the AES information that
+            just got set up.
             
-            # Socket creation and sendoff
-            with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-                sock.connect((ip,port))
-                sock.sendall(bytes(intent,'utf8'))
- 
- 
- 
-    def known_auth(self,msg,ip,port):
-        '''Deal with a request for a password for a KNOWN user'''
+            This sends the intent to authorize to the remote who will in turn
+            prompt the local client for their password based.'''
+
+            logging.info('Key exchange verified. Requesting to auth to remote')
+       
+            intent = 'AUTH_REQ:{0}:{1}:{2}'.format(
+                localInfo.HOST,
+                localInfo.PORT,
+                localInfo.username)
+
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((ip, port))
+                sock.sendall(bytes(intent, 'utf8'))
+
+
+    
+    def auth_req(self, msg, ip, port, flg):
+        '''Determine whether to ask for a known user or new user password.
+        This method receives the AUTH_REQ intent and determines whether or not
+        to prompt for a new password or to prompt for an existing password (and
+        in doing so provide the appropriate salt to use for that).
+        
+        Will also be called during authorizing to send same to remote from
+        local.
+
+        format of calling intent: AUTH_REQ:IP:PORT:USERNAME
+        responds with: REQ_NEWAUTH:IP:PORT:USERNAME
+                   OR  REQ_KNOWN:IP:PORT:USERNAME:SALT
+        '''
+        
+        # If called in response to receiving this from remote
+        if flg == 1:
+            
+            # Grab the username:
+            username = msg.split(':')[3]
+
+            # Check if it exists:
+            if knownUsers.check(username):
+                logging.info('User {0} exists in known_users'.format(username))
+                logging.info('Sending request to auth known user')
+
+                # Get salt:
+                salt = getSalt(username)
+                
+                # Craft and send request to auth a known user
+                intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
+                    localInfo.HOST,
+                    localInfo.PORT,
+                    username,
+                    salt)
+
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((ip, port))
+                    sock.sendall(bytes(intent, 'utf8'))
+
+            # If user does not exist in local memory, go ahead and ask for a new
+            # password.
+            else:
+                
+                intent = 'REQ_NEWAUTH:{0}:{1}:{2}'.format(
+                    localInfo.HOST,
+                    localInfo.PORT,
+                    username)
+
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((ip, port))
+                    sock.sendall(bytes(intent, 'utf8'))
+        
+
+        # If called by internal function to auth remote
+        else:
+            # Set username to be remote username
+            username = connections[ip].username
+            
+            # Check if it exists:
+            if knownUsers.check(username):
+                logging.info('User {0} exists in known_users'.format(username))
+                logging.info('Sending request to auth known user')
+
+                # Get salt:
+                salt = getSalt(username)
+                
+                # Craft and send request to auth a known user
+                intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
+                    localInfo.HOST,
+                    localInfo.PORT,
+                    username,
+                    salt)
+
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((ip, port))
+                    sock.sendall(bytes(intent, 'utf8'))
+
+            # If user does not exist in local memory, go ahead and ask for a new
+            # password.
+            else:
+                
+                intent = 'REQ_NEWAUTH:{0}:{1}:{2}'.format(
+                    localInfo.HOST,
+                    localInfo.PORT,
+                    username)
+
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((ip, port))
+                    sock.sendall(bytes(intent, 'utf8'))
+
+
+
+    def req_known(self, msg, ip, port)
+        '''Deals with a request for a known user
+        This method deals with handling a request for a known user by prompting
+        for the password of a known user and hashing with the specified salt
+        then encrypting this with AES to send back to the server. It also will
+        send another message to the server if the remote connection has not yet
+        authorized which will depend upon whether that user exists locally or
+        not.
+
+        format of calling intent: REQ_KNOWN:IP:PORT:USERNAME:SALT
+        format of response: AUTH_VERIFY:IP:PORT:USER:HASH
+            note: HASH is AES encrypted base64
+        '''
+        
         # Get the username and set the salt
         username = connections[ip].username
         salt = msg.split(':')[4]
@@ -376,27 +476,40 @@ class server:
 
         # Convert to base64 and str
         pw = str(base64.b64encode(pw),'utf8')
-
         logging.debug('Encrypted Hash: {0}'.format(pw))
         
-        intent = 'PASS_ACK:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
-                                                   localInfo.PORT,
-                                                   username,
-                                                   pw)
+        intent = 'AUTH_VERIFY:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            username,
+            pw)
         
         # Send it off for the server to handle
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
+            sock.sendall(bytes(intent, 'utf8'))
+        
+        # Also call auth_req if the user has not authed yet.
+        if not connections[ip].Authed:
+            self.auth_req(msg, ip, port, 0)
 
 
+    def req_newauth(self, msg, ip, port):
+        '''Handle request for new user password
+        Takes care of prompting for a new password if the remote server does not
+        already know the current nick.
 
-    def req_pass(self,msg,ip,port):
-        '''Deal with a request for a password for a NEW user''' 
+        format of calling request: REQ_NEWAUTH:IP:PORT:USER
+        format of response: AUTH_SETNEW:IP:PORT:USER:HASH
+            note: HASH is AES encrypted base64
+        '''
+        
+        # Get the username
         username = connections[ip].username
-        print('Password requested by {0}:{1} for new user: {2}'.format(ip,
-                                                                   port,
-                                                                   username))
+        print('Password requested by {0}:{1} for new user: {2}'.format(
+            ip,
+            port,
+            username))
                 
         # Get password       
         logging.debug('First time password creation')
@@ -419,112 +532,124 @@ class server:
         # Convert to base64 and str
         pw = str(base64.b64encode(pw),'utf8')
 
-        intent = 'PASS_ACK:{0}:{1}:{2}:{3}'.format(localInfo.HOST,
-                                                   localInfo.PORT,
-                                                   username,
-                                                   pw)
+        intent = 'AUTH_SETNEW:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            username,
+            pw)
         
         # Socket creation
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent,'utf8'))
-    
-
-
-    def pass_ack(self,msg,ip,port):
+            sock.connect((ip, port))
+            sock.sendall(bytes(intent, 'utf8'))
         
-        logging.debug('Entered PASS_ACK')
+        # Also call auth_req if the user has not authed yet
+        if not connections[ip].Authed:
+            auth_req(msg, ip, port, 0)
 
-        # Parse uname and password hash
+
+    def auth_verify(self, msg, ip, port):
+        '''Handles verifying a response to auth to a known user.
+        This verifies that the remote hash is the same as the stored hash. In
+        order to do this, the HASH portion must be first base64 decoded then
+        decrypted with AES before finally being compared to the stored hash.
+
+        From there, the server will either reprompt or accept. If I have time
+        I will likely add a retry limit to avoid bruteforcing.
+        
+        format of calling intent: AUTH_VERIFY:IP:PORT:USERNAME:B64(AES(HASH))
+        format of response: CON_FIN:IP:PORT
+                        OR: calls auth_req again
+        '''
+
+        # Parse out the username and base64 encoded, encrypted hash
         username = msg.split(':')[3]
         passhash = msg.split(':')[4]
-
-        logging.debug('b64 Hash: {0}'.format(passhash))
-
-        # Convert back from base64 and decrypt
+        
+        # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
-        passhash = self.decrypt(ip,passhash)
+        passhash = decrypt(passhash)
+        logging.debug('Recieved remote hash: {0}'.format(passhash))
         
-        logging.debug('Decrypted Hash: {0}'.format(passhash))
+        logging.debug('Entered known user state')
+        logging.debug('Salt: {0}'.format(knownUsers.getSalt(username)))
+        logging.debug('Hash: {0}'.format(knownUsers.getPass(username)))
         
-        if knownUsers.check(username):
-                
-            logging.debug('Entered known user state')
-            logging.debug('Salt: {0}'.format(knownUsers.getSalt(username)))
-            logging.debug('Hash: {0}'.format(knownUsers.getPass(username)))   
+        # Compare to the stored hash for the user
+        check = passhash == getPass(username)
+        logging.debug('Hash check: {0}'.format(check))
+        if passhash == getPass(username):
+            '''hashes matched, establish connection'''
             
-            # For debugging purposes
-            val = passhash == knownUsers.getPass(username)
-            logging.debug('Hash check: {0}'.format(val))
-            
-            if passhash == knownUsers.getPass(username):
-                '''password matches record, set vals'''
-                
-                connections[ip].username = username
-                connections[ip].password = passhash
-                
-                # If key is found...
-                if knownUsers.getPubKey(username) is not None:
-                    connections[ip].publicKey = knownUsers.getPubKey(username)
-                 
-                    # Sets the current connection server side
-                    currcon = (ip,port)
-                    
-                    logging.debug('Set currcon and setting flag to false')
-                    intent = 'CON_FIN:{0}:{1}'.format(localInfo.HOST, 
-                                                      localInfo.PORT)
-
-                    with socket.socket(socket.AF_INET, 
-                            socket.SOCK_STREAM) as sock:
-                        
-                        sock.connect((ip,port))
-                        sock.sendall(bytes(intent,'utf8'))
-                    
-                    # Free the client
-                    inHandshake = False
-
-                    return
-
-                # Something broke and I don't know what
-                else:
-                    print('Something very unexpected went wrong...')
-                    print('Check that the known_hosts file exists' +
-                          ' and has not been tampered with.')
-                    print('Please check that the rsa key for the requested ' +
-                          'user also exists.')
-                    return
-            
-            else:
-                salt = knownUsers.getSalt(username)
-                self.req_pass(username,ip,port)
+            # Set currcon and send CON_EST
+            currcon = (ip, port)
+            intent = 'CON_EST:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
         
-        else:
-            '''If the user does not exist in known_hosts...'''
-            knownUsers.createUser(username,passhash,connections[ip].publicKey)
-            # Creates the new user
-            # Finishes the handshake
-            
-            logging.debug('Created new user')
-
-            # Sets the current connection server side
-            currcon = (ip,port)
-            
-            logging.debug('currcon: {0}'.format(currcon))
-
-            intent = 'CON_FIN:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
-
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((ip,port))
-                sock.sendall(bytes(intent,'utf8'))
+                sock.connect((ip, port))
+                sock.sendall(bytes(intent, 'utf8'))
             
             est_msg  = 'Connection established with '
             est_msg += '{0}:{1}'.format(ip,port)
             logging.debug(est_msg)
+            
+            # Set authed
+            connections[ip].Authed = True
+
+            # Release handshake
             inHandshake = False
+        
+
+        # Call the request again but as if it were requested remote
+        else:
+            self.auth_req(msg, ip, port, 1)
+
+    
+
+    def auth_setnew(self, msg, ip, port):
+        '''Set up a new user with the new hash
+        Because the calling nick is previously unknown this simply creates
+        a new user with the current parameters.
+
+        format of calling request: AUTH_SETNEW:IP:PORT:USERNAME:B64(AES(HASH))
+        format of response: CON_FIN:IP:PORT
+        '''
+        
+        # Parse out username and encoded, encrypted hash
+        username = msg.split(':')[3]
+        passhash = msg.split(':')[4]
+        
+        # Decode and decrypt the hash
+        passhash = base64.b64decode(passhash)
+        passhash = decrypt(passhash)
+        
+        # Set the public key
+        pubkey = connections[ip].publicKey
+
+        # Create the new user
+        knownUsers.createUser(username, passhash, pubkey)
+
+        # Set currcon and send CON_EST
+        currcon = (ip, port)
+        intent = 'CON_EST:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect((ip, port))
+            sock.sendall(bytes(intent, 'utf8'))
+
+        est_msg  = 'Connection established with '
+        est_msg += '{0}:{1}'.format(ip,port)
+        logging.debug(est_msg)
+        
+        # Set authed
+        connections[ip].Authed = True
+
+        # Release the handshake
+        inHandshake = False
+    
 
 
-
-    def con_fin(self,msg,ip,port):
+    def con_est(self,msg,ip,port):
         print('Connection established with {0}:{1}'.format(ip,port))
         global currcon
         currcon = (ip,port)
@@ -638,26 +763,34 @@ def send(msg):
     # Send it off
     with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
         sock.connect(currcon)
-        sock.sendall(bytes(intent,'utf8'))
+        sock.sendall(bytes(intent, 'utf8'))
+
 
 
 def lpad(msg):
     '''This method will pad the message with nullbytes for encryption with
     AES'''
     padlen = (16 - len(msg)) % 16
-    padchar = '\x00' # Allow easily changing this
+    padchar = '\x00' # Allow easily changing this 
     msg = padchar*padlen + msg # pad to the left of the message
+
+    logging.debug('Padchar: {0}'.format(padchar))
+    logging.debug('Paddedmsg: {0}'.format(msg))
     return msg
+
+
 
 def getState():
     return inHandshake
+
+
 
 def setState(state):
     inHandshake = state
 
 #===============================================================[ Server Class ]
-class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    pass
+
+
 
 def start_server(serverInfo):
     # Grab and set the HOST and port from config
