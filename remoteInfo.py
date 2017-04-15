@@ -18,6 +18,7 @@ class remoteInfo:
         self.publicKey = None
         self.key = None
         self.IV = None
+        self.Authed = False
 
     def __str__(self):
         '''Allows printing the object'''
@@ -29,6 +30,8 @@ class remoteInfo:
                                                           self.password)
         
         str_rep += 'key:{0}\nIV:{1}\n'.format(self.key, self.IV)
+        
+        str_rep += 'Authed:{0}\n'.format(Authed)
 
         return str_rep
 
