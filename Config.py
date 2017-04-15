@@ -80,7 +80,7 @@ class ServerInfo:
             with open(filepath,'wb') as f:
                 f.write(bytes(self.rsa.exportKey('PEM')))
                 log.info('Saved private key to {0}'.format(filepath))
-                self.privKey = self.rsa.exportKey('PEM')
+                self.privKey = RSA.importKey(self.rsa.exportKey('PEM'))
 
             with open(filepath+'.pub','wb') as f:
                 f.write(bytes(self.rsa.publickey().exportKey('PEM')))
