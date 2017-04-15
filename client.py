@@ -27,8 +27,7 @@ serverInformation = None
 serverInstance = None
 logging.getLogger()
 
-global ts
-
+ts = None
 
 
 def start_client(serverInfo, tserv):
@@ -46,7 +45,8 @@ def start_client(serverInfo, tserv):
     global serverInformation 
     serverInformation = serverInfo
     
-    # Set global access to server instance
+    # Set global server instance
+    global ts
     ts = tserv
 
     isConnected = False
