@@ -177,7 +177,7 @@ class server:
             localInfo.HOST,
             localInfo.PORT,
             localInfo.username,
-            str(localInfo.publickey.exportKey('PEM'), 'utf8')
+            str(localInfo.publickey.exportKey('PEM'), 'utf8'))
 
         # handshake
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
@@ -545,7 +545,7 @@ class server:
         
         # Also call auth_req if the user has not authed yet
         if not connections[ip].Authed:
-            auth_req(msg, ip, port, 0)
+            self.auth_req(msg, ip, port, 0)
 
 
     def auth_verify(self, msg, ip, port):
@@ -568,7 +568,7 @@ class server:
         
         # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
-        passhash = decrypt(passhash)
+        passhash = self.decrypt(passhash)
         logging.debug('Recieved remote hash: {0}'.format(passhash))
         
         logging.debug('Entered known user state')
@@ -621,7 +621,7 @@ class server:
         
         # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
-        passhash = decrypt(passhash)
+        passhash = self.decrypt(passhash)
         
         # Set the public key
         pubkey = connections[ip].publicKey
