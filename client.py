@@ -74,7 +74,7 @@ def start_client(serverInfo, tserv):
                 commandHandler(msg)
         
             else:
-                serverInstance.send(msg)
+                ts.send(msg)
 
 
 
