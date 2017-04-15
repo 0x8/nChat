@@ -177,7 +177,7 @@ class server:
             localInfo.HOST,
             localInfo.PORT,
             localInfo.username,
-            localInfo.publickey.exportKey('PEM'))
+            str(localInfo.publickey.exportKey('PEM'), 'utf8')
 
         # handshake
         with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:

@@ -129,7 +129,7 @@ def commandHandler(cmd):
                 servInfo.HOST,
                 servInfo.PORT,
                 servInfo.username,
-                servInfo.publickey.exportKey('PEM'))
+                str(servInfo.publickey.exportKey('PEM'), 'utf8')
 
             sock.sendall(bytes(intent,'utf8'))
             logging.info('Intent to connect sent to {0}:{1}'.format(
