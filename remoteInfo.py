@@ -18,3 +18,17 @@ class remoteInfo:
         self.publicKey = None
         self.key = None
         self.IV = None
+
+    def __str__(self):
+        '''Allows printing the object'''
+        str_rep  = 'HOST:{0}\nPORT:{1}\nusername:{2}\n'.format(self.HOST,
+                                                               self.PORT,
+                                                               self.username)
+        
+        str_rep += 'publicKey:{0}\npassword:{1}\n'.format(self.publicKey,
+                                                          self.password)
+        
+        str_rep += 'key:{0}\nIV:{1}\n'.format(self.key, self.IV)
+
+        return str_rep
+
