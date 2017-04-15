@@ -85,7 +85,8 @@ class ServerInfo:
             with open(filepath+'.pub','wb') as f:
                 f.write(bytes(self.rsa.publickey().exportKey('PEM')))
                 log.info('Saved public key to {0}.pub'.format(filepath))
-                self.publickey = self.rsa.publickey().exportKey('PEM')
+                self.publickey = RSA.importKey(
+                                    self.rsa.publickey().exportKey('PEM'))
 
         else:
             # Import the key from the rsa_dir
