@@ -436,7 +436,7 @@ class server:
 
 
 
-    def req_known(self, msg, ip, port)
+    def req_known(self, msg, ip, port):
         '''Deals with a request for a known user
         This method deals with handling a request for a known user by prompting
         for the password of a known user and hashing with the specified salt
