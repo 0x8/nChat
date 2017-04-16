@@ -372,7 +372,7 @@ class server:
                 logging.info('Sending request to auth known user')
 
                 # Get salt:
-                salt = getSalt(username)
+                salt = knownUsers.getSalt(username)
                 
                 # Craft and send request to auth a known user
                 intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
@@ -410,7 +410,7 @@ class server:
                 logging.info('Sending request to auth known user')
 
                 # Get salt:
-                salt = getSalt(username)
+                salt = knownUsers.getSalt(username)
                 
                 # Craft and send request to auth a known user
                 intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
@@ -581,9 +581,9 @@ class server:
         logging.debug('Hash: {0}'.format(knownUsers.getPass(username)))
         
         # Compare to the stored hash for the user
-        check = passhash == getPass(username)
+        check = passhash == knownUsers.getPass(username)
         logging.debug('Hash check: {0}'.format(check))
-        if passhash == getPass(username):
+        if passhash == knownUsers.getPass(username):
             '''hashes matched, establish connection'''
             
             # Set currcon and send CON_EST
