@@ -13,7 +13,7 @@ import client
 import logging
 
 # Allow color log debug mode
-DEBUG = True
+DEBUG = False
 
 if __name__ == '__main__':
     # Start logging
