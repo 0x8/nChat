@@ -28,9 +28,9 @@ serverInstance = None
 logging.getLogger()
 
 ts = None
+sthread = None
 
-
-def start_client(serverInfo, tserv):
+def start_client(serverInfo, tserv, servThread):
     '''Starts the client and begins prompts
     This method is the "main" of the client. It prints the welcome message and
     starts the frontend interface for the client portion of the program. It
@@ -48,6 +48,9 @@ def start_client(serverInfo, tserv):
     # Set global server instance
     global ts
     ts = tserv
+
+    global sthread
+    sthread = servThread
 
     isConnected = False
     prompt = '>> '
@@ -67,15 +70,21 @@ def start_client(serverInfo, tserv):
             continue
         
         else:
-            # Grab message and check if it is a command
-            msg = input(prompt)
-        
-            if msg.startswith('/'):
-                commandHandler(msg)
-        
-            else:
-                ts.send(msg)
-
+            try:
+                # Grab message and check if it is a command
+                msg = input(prompt)
+            
+                if msg.startswith('/'):
+                    commandHandler(msg)
+            
+                else:
+                    ts.send(msg)
+            
+            # On recieving ^C signal, gracefully kill the program
+            except KeyboardInterrupt as e:
+                commandHandler('/quit')
+                sthread.stop()
+                exit('Caught KeyboardInterrupt, exiting.')
 
 
 def commandHandler(cmd):
@@ -202,25 +211,37 @@ def commandHandler(cmd):
         # Craft intent to inform the other server
         intent = 'CON_QUIT:{0}:{1}'.format(
             servInfo.HOST,
-            serverInfo.PORT)
+            servInfo.PORT)
         
         # Get remote ip and port if they exist, otherwise just exit
         try:
-            remoteHOST, remotePORT = ts.getCurrCon()
-        
+            remoteHOST, remotePORT = ts.getCurrConn()
+            
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((remoteHOST, remotePORT))
+                sock.sendall(bytes(intent, 'utf8'))
+            
+            # Stop server thread
+            sthread.stop()
+
         except TypeError as e:
+            #print(e)
+            sthread.stop()
             exit('Client Quit.')
         
         except NameError as e:
-            print(e)
+            #print(e)
+            sthread.stop()
             exit('Client Quit.')
         
         except IndexError as e:
-            print(e)
+            #print(e)
+            sthread.stop()
             exit('Client Quit.')
         
         except Exception as e:
-            print(e)
+            #print(e)
+            sthread.stop()
             exit('Client Quit.')
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
