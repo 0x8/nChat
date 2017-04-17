@@ -371,8 +371,8 @@ class server(threading.Thread):
         # If a connection has already been established, send an busy message
         # and stop processing. Minor protection against someone trying to
         # reauth with a different key.
-        global busy
-        if busy:
+        global Busy
+        if Busy:
             intent = "SIG_BUSY:{0}:{1}".format(localInfo.HOST, localInfo.PORT)
             self.sendIntent(intent, ip, port)
             
