@@ -248,3 +248,19 @@ def commandHandler(cmd):
             sock.connect((remoteHost, remotePORT))
             sock.sendall(bytes(intent, 'utf8'))
 
+    # >> /help
+    elif command == 'help':
+        print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        print('This is the help section. The following commands are as follows')
+        print('/connect <ip> <port> - Connect to remote server to begin' +
+              'chatting')
+        print('---------------------------------------------------------------')
+        print('/nick <new_username> - Once connected, ask the server to change'+
+              ' your registered nickname. (requires existing connection and ' +
+              'reauthentication via password)')
+        print('---------------------------------------------------------------')
+        print('/quit - Currently broken due to the fickle nature of threads. ' +
+              'I am working on some way to fix this but it will take time.')
+        print('---------------------------------------------------------------')
+        print('/help - Displays this menu')
+        print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')

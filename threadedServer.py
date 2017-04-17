@@ -912,7 +912,9 @@ class server(threading.Thread):
         # Base64 decode the message
         msg = base64.b64decode(msg)
         logging.debug('Encrypted Msg: {0}'.format(msg))
-        
+       
+        print('GOT ENCRYPTED MSG: {0}'.format(msg))
+
         # Decrypt the message
         decryptor = AES.new(Key ,AES.MODE_CBC, IV)
         msg = decryptor.decrypt(msg).strip(b'\x00')
