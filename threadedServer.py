@@ -29,6 +29,8 @@ connections = dict()
 
 global currcon
 currcon = None
+Busy = False
+
 
 # For key verification
 myKey = None
@@ -155,7 +157,192 @@ class server:
         # ---- CONVERSATIONAL INTENTS ---- #
         elif intent == 'MSG':
             self.mdecrypt(msg, ip, port)
+        
+        elif intent == 'CON_QUIT':
+            self.con_quit(msg, ip, port)
 
+        elif intent == 'NICK_CHANGE':
+            self.nick_change(msg, ip, port)
+
+        elif intent == 'SIG_BUSY':
+            self.sig_busy(msg, ip, port)
+        
+        elif intent == 'SIG_ERR':
+            self.sig_err(msg, ip, port)
+
+        elif intent == 'NC_AUTHR':
+            self.nc_authr(msg, ip, port)
+
+        elif intent == 'NC_REQV':
+            self.nc_reqv(msg, ip, port)
+
+
+    def sig_busy(self, msg, ip, port):
+        '''Aborts connection if remote is already connected to someone else'''
+        print('Got SIG_BUSY from {0}:{1}'.format(ip, port))
+        print('You must wait until they are free to connect.')
+        return
+        
+
+    def sig_err(self, msg, ip, port):
+        '''Aborts handshake and prints error message'''
+        
+        emsg = msg.split(':')[3]
+        print('Got SIG_ERR from {0}:{1}'.format(ip, port))
+        print('Error:', emsg)
+        return
+
+
+
+    def nick_change(self, msg, ip, port):
+        '''Process a request to change a nick
+        
+        format of calling intent: NICK_CHANGE:IP:PORT:OLDUSER:NEWUSER 
+        format of response: SIG_ERR:IP:PORT:eMSG
+                        or  NC_AUTHR:IP:PORT:NEWUSER:SALT
+        '''
+        # Parse information
+        olduser = msg.split(':')[3]
+        newuser = msg.split(':')[4]
+
+
+        # If no session has been started, send error
+        if not currcon:
+            intent == 'SIG_ERR:{0}:{1}:{2}'.format(
+                localInfo.HOST,
+                localInfo.PORT,
+                'No connection started, please connect first')
+            
+            # Send to remote
+            self.sendIntent(intent, ip, port)
+        
+
+        # If the sender is not the current connector also abort
+        elif (ip, port) != currcon:
+            '''Simply drop, no need to waste resource replying to a spoof'''
+            return
+                    
+
+        # Ensure old user exists
+        elif not knownUsers.check(olduser):
+            intent = 'SIG_ERR:{0}:{1}:{2}'.fomrat(
+                localInfo.HOST,
+                localInfo.PORT,
+                'Old user does not exist, unknown error.')
+
+            self.sendIntent(intent, ip, port)
+        
+        # Ensure new user is unique
+        elif knownUsers.check(newuser):
+            intent = 'SIG_ERR:{0}:{1}:{2}'.format(
+                localInfo.HOST,
+                localInfo.PORT,
+                'New username is already taken.')
+
+            self.sendIntent(intent, ip, port)
+        
+        # If none of the above triggered, we can initiate the change
+        else:
+            
+            salt = knownUsers.getSalt(olduser)
+            salt = self.encrypt(ip, salt)
+            salt = base64.b64encode(salt)
+
+            intent = 'NC_AUTHR:{0}:{1}:{2}:{3}'.format(
+                localInfo.HOST,
+                localInfo.PORT,
+                newuser,
+                salt)
+
+            self.sendIntent(intent, ip, port)
+
+
+    def nc_authr(self, msg, ip, port):
+        '''Prompts the user to enter their password for the server to verify
+
+        format of calling intent: NC_AUTHR:IP:PORT:NEWUSER:B64(AES(SALT))  
+        '''
+        
+        # Parse out the new user and salt
+        newuser = msg.split(':')[3]
+        salt    = msg.split(':')[4]
+
+        # Decode then decrypt salt
+        salt = base64.b64decode(salt)
+        salt = decyrpt(ip, salt)
+
+        print('Password requested for current nick by {0}:{1}'.format(ip, port))
+
+        # Prompt the user for the password and hash with salt
+        prompt = 'Current user password: '
+        pw = ''
+        while pw == '' or pw == None:
+            pw = getpass.getpass(prompt)
+            pw = bcrypt_sha256.using(salt=salt).hash(pw)
+        
+        # Encrypt and encode the new hash
+        pw = encrypt(ip, pw)
+        pw = base64.b64encode(pw)
+
+        intent = 'NC_REQV:{0}:{1}:{2}:{3}'.format(
+            localInfo.HOST,
+            localInfo.PORT,
+            newuser,
+            pw)
+        
+        # Send off to the server.
+        self.sendIntent(intent, ip, port)
+
+
+
+    def nc_reqv(self, msg, ip, port):
+        '''Attempts to verify the hash and set the new username
+
+        format of calling intent: NC_REQV:IP:PORT:NEWUSER:B64(AES(HASH))
+        format of response: NC_SUCC:IP:PORT
+                        or  SIG_ERR:IP:PORT:EMSG
+        '''
+
+        # Pull the old username, new username, and hash
+        olduser = connections[ip].username
+        newuser = msg.split(':')[3]
+        pw      = msg.split(':')[4]
+
+        # Decode and decrypt the hash
+        pw = base64.b64decode(pw)
+        pw = self.decrypt(ip, pw)
+
+        # Grab old hash and compare
+        opw = knownUsers.getPass(olduser)
+        if pw == opw:
+            '''Auth'''
+            
+            knownUsers.changeUser(olduser, newuser)
+            connections[ip].username = newuser
+
+            intent = 'NC_SUCC:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
+            
+            # Confirm with remote user
+            self.sendIntent(intent, ip, port)
+        
+        # If hashes did not match send error with notice of failure
+        else:
+            intent = 'SIG_ERR:{0}:{1}:{2}'.format(
+                localInfo.HOST,
+                localInfo.PORT,
+                'Failed to verify identity. Nick unchanged.')
+                
+            self.sendIntent(intent, ip, port)
+        return
+
+
+
+    def sendIntent(self, intent, ip, port):
+        '''Creates a socket and sends the provided intent message''' 
+        # Create the socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect((ip, port))
+            sock.sendall(bytes(intent, 'utf8'))
 
 
     def init_conv(self, msg, ip, port):
@@ -168,12 +355,22 @@ class server:
         INIT_CONV:IP:PORT:USERNAME:PUBKEY
         '''
         
+        # If a connection has already been established, send an busy message
+        # and stop processing. Minor protection against someone trying to
+        # reauth with a different key.
+        global busy
+        if busy:
+            intent = "SIG_BUSY:{0}:{1}".format(localInfo.HOST, localInfo.PORT)
+            self.sendIntent(intent, ip, port)
+            
+
         # Pull and set remote username and public key
         username = msg.split(':')[3]
         pubkey   = msg.split(':')[4]
         connections[ip].username  = username
         connections[ip].publicKey = RSA.importKey(pubkey)
         
+
         # Craft intent 
         intent = 'INIT_ACK:{0}:{1}:{2}:{3}'.format(
             localInfo.HOST,
@@ -181,11 +378,8 @@ class server:
             localInfo.username,
             str(localInfo.publickey.exportKey('PEM'), 'utf8'))
 
-        # handshake
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent, 'utf8'))
-
+        # Send intent and continue hanshake
+        self.sendIntent(intent, ip, port)
 
 
     def init_ack(self, msg, ip, port):
@@ -209,6 +403,15 @@ class server:
         I unfortunately do not have time to implement.
         '''
         
+        # Help prevent spoofing by dropping the connection if busy.
+        # Busy is set on connection establishment and freed on release
+        # If Busy is set and someone sends init_ack, it is malicious
+        global Busy
+        if Busy:
+            intent = 'SIG_BUSY:{0}:{1}'.format(localInfo.HOST, localInfo.PORT)
+            self.sendIntent(intent, ip, port)
+        
+
         # Pull and set remote username and public key
         username = msg.split(':')[3]
         pubkey   = msg.split(':')[4]
@@ -247,11 +450,9 @@ class server:
             localInfo.PORT,
             eIV,
             eKey)
-
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent, 'utf8'))
     
+        # Send
+        self.sendIntent(intent, ip, port) 
    
 
     def ss_set(self, msg, ip, port):
@@ -280,12 +481,9 @@ class server:
             localInfo.PORT,
             sKey,
             sIV) 
-
-        # Socket Creation
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent, 'utf8'))
-
+        
+        # Send
+        self.sendIntent(intent, ip, port)
 
 
     def ss_ack(self,msg,ip,port):
@@ -313,10 +511,13 @@ class server:
             
             # Craft abortion intent and tell the remote client
             logging.debug('Aborting connection')
-            intent = "CON_ABRT"
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((ip, port))
-                sock.sendall(bytes(intent, 'utf8'))
+            intent = "SIG_ERR:{0}:{1}:{2}".format(
+                localInfo.HOST,
+                localInfo.PORT,
+                'AES information did not match, aborting')
+            
+            # Send
+            self.sendIntent(intent, ip, port)
                 
             # Delete current client information
             del connections[ip]
@@ -340,10 +541,7 @@ class server:
                 localInfo.PORT,
                 localInfo.username)
 
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((ip, port))
-                sock.sendall(bytes(intent, 'utf8'))
-
+            self.sendIntent(intent, ip, port)
 
     
     def auth_req(self, msg, ip, port, flg):
@@ -381,9 +579,7 @@ class server:
                     username,
                     salt)
 
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((ip, port))
-                    sock.sendall(bytes(intent, 'utf8'))
+                self.sendIntent(intent, ip, port)
 
             # If user does not exist in local memory, go ahead and ask for a new
             # password.
@@ -394,10 +590,7 @@ class server:
                     localInfo.PORT,
                     username)
 
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((ip, port))
-                    sock.sendall(bytes(intent, 'utf8'))
-        
+                self.sendIntent(intent, ip, port) 
 
         # If called by internal function to auth remote
         else:
@@ -419,10 +612,8 @@ class server:
                     username,
                     salt)
 
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((ip, port))
-                    sock.sendall(bytes(intent, 'utf8'))
-
+                self.sendIntent(intent, ip, port)
+                    
             # If user does not exist in local memory, go ahead and ask for a new
             # password.
             else:
@@ -432,10 +623,8 @@ class server:
                     localInfo.PORT,
                     username)
 
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((ip, port))
-                    sock.sendall(bytes(intent, 'utf8'))
 
+                self.sendIntent(intent, ip, port)
 
 
     def req_known(self, msg, ip, port):
@@ -487,13 +676,13 @@ class server:
             pw)
         
         # Send it off for the server to handle
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect((ip,port))
-            sock.sendall(bytes(intent, 'utf8'))
-        
+        self.sendIntent(intent, ip, port)
+
+
         # Also call auth_req if the user has not authed yet.
         if not connections[ip].Authed:
             self.auth_req(msg, ip, port, 0)
+
 
 
     def req_newauth(self, msg, ip, port):
@@ -542,10 +731,9 @@ class server:
             pw)
         
         # Socket creation
-        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as sock:
-            sock.connect((ip, port))
-            sock.sendall(bytes(intent, 'utf8')) 
-            logging.debug('SENT INTENT: {0}'.format(intent))
+        self.sendIntent(intent, ip, port)
+        logging.debug('SENT INTENT: {0}'.format(intent))
+
         
         # Also call auth_req if the user has not authed yet
         logging.debug('Asking remote to auth')
@@ -600,6 +788,10 @@ class server:
             
             # Set authed
             connections[ip].Authed = True
+            
+            # Set Busy
+            global Busy
+            Busy = True
 
             # Release handshake
             global inHandshake
@@ -656,6 +848,10 @@ class server:
         logging.debug('Setting connection to Authed')
         connections[ip].Authed = True
 
+        # Set Busy
+        global Busy
+        Busy = True
+
         # Release the handshake
         global inHandshake
         inHandshake = False
@@ -671,6 +867,23 @@ class server:
         logging.debug('inHandshake: {0}'.format(inHandshake))
 
 
+
+    def con_quit(self, msg, ip, port):
+        '''Handles removing the connection to the client that quit'''
+        
+        # Pull username from dict
+        username = connections[ip].username
+
+        # Inform the user of the quit action
+        print('{0} at {1}:{2} has quit.'.format(username, ip, port))
+        
+
+        # Remove dict entry and set currcon to none        
+        del connections[ip]
+        global currcon
+        currcon = None
+        
+    
 
     def mdecrypt(self,msg,ip,port):
         '''Decrypt and display an instant message'''
@@ -695,7 +908,7 @@ class server:
 
     
     #===============[ Server Crypto Methods ]===============#
-    def lpad(self,msg):
+    def lpad(self, msg):
         '''This method will pad the message with nullbytes for encryption with
         AES'''
         padlen = (16 - len(msg)) % 16
@@ -704,11 +917,11 @@ class server:
         return msg
 
 
-    def unpad(self,msg):
+    def unpad(self, msg):
         return msg.strip('\x00')
 
 
-    def decrypt(self,ip,msg):
+    def decrypt(self, ip, msg):
 
         # Get key and IV then create decryptor object
         aesIV  = connections[ip].IV
@@ -722,7 +935,7 @@ class server:
         return msg
 
 
-    def encrypt(self,ip,msg):
+    def encrypt(self, ip, msg):
         
         # Get key and IV then create encryptor object
         aesIV  = connections[ip].IV
@@ -810,6 +1023,13 @@ def getState():
 def setState(state):
     global inHandshake
     inHandshake = state
+
+
+
+def getCurrConn():
+    global currcon
+    return currcon
+
 
 #===============================================================[ Server Class ]
 
