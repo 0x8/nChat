@@ -160,17 +160,69 @@ def commandHandler(cmd):
 
     # >> /nick <new username>
     elif command == 'nick':
-        new_user = cmd_parts[1]
-        old_user = None 
-        servInfo.username = new_user
+        try:
+            new_user = cmd_parts[1]
+            old_user = servInfo.username
 
-        # Inform remote server of intent to change user
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #sock.settimeout(0.0) # Non-blocking
-        sock.connect((remoteHOST,remotePORT))
+            # Update username locally
+            servInfo.username = new_user
+
+            logging.info('Attempting to change nick with remote server')
+
+            global ts
+            remoteHOST, remotePORT = ts.getCurrConn()
+
+            intent = 'NICK_CHANGE:{0}:{1}:{2}:{3}'.format(
+                servInfo.HOST,
+                servInfo.PORT,
+                old_user,
+                new_user)
+
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((remoteHOST,remotePORT))
+                sock.sendall(bytes(intent, 'utf8'))
         
-        intent = 'NICK_CHANGE:{0}:{1}:{2}'.format(
+        except IndexError as e:
+            print(e)
+
+        except TypeError as e:
+            print('Connection not yet established')
+
+        except NameError as e:
+            print(e)
+
+
+
+    # >> /quit
+    elif command == 'quit':
+        
+        logging.info('Quitting connection. Exiting')
+        
+        # Craft intent to inform the other server
+        intent = 'CON_QUIT:{0}:{1}'.format(
             servInfo.HOST,
-            servInfo.PORT,
-            servInfo.username)
+            serverInfo.PORT)
+        
+        # Get remote ip and port if they exist, otherwise just exit
+        try:
+            remoteHOST, remotePORT = ts.getCurrCon()
+        
+        except TypeError as e:
+            exit('Client Quit.')
+        
+        except NameError as e:
+            print(e)
+            exit('Client Quit.')
+        
+        except IndexError as e:
+            print(e)
+            exit('Client Quit.')
+        
+        except Exception as e:
+            print(e)
+            exit('Client Quit.')
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect((remoteHost, remotePORT))
+            sock.sendall(bytes(intent, 'utf8'))
 
