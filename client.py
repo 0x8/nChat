@@ -91,6 +91,8 @@ def commandHandler(cmd):
     cmd_parts = cmd.split(' ')
     command = cmd_parts[0][1:]
     
+    global ts
+
     # >> /connect <host> <port>
     if command == 'connect':
         '''Set up a new connection
@@ -169,7 +171,6 @@ def commandHandler(cmd):
 
             logging.info('Attempting to change nick with remote server')
 
-            global ts
             remoteHOST, remotePORT = ts.getCurrConn()
 
             intent = 'NICK_CHANGE:{0}:{1}:{2}:{3}'.format(
