@@ -782,9 +782,9 @@ class server(threading.Thread):
         logging.debug('Hash: {0}'.format(knownUsers.getPass(username)))
         
         # Compare to the stored hash for the user
-        check = passhash == getPass(username)
+        check = passhash == knownUsers.getPass(username)
         logging.debug('Hash check: {0}'.format(check))
-        if passhash == getPass(username):
+        if passhash == knownUsers.getPass(username):
             '''hashes matched, establish connection'''
             
             # Set currcon and send CON_EST
