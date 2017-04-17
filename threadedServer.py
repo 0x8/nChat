@@ -42,7 +42,7 @@ inHandshake = False
 # Getting root logger for config purposes
 logging.getLogger()
 
-class server:
+class server(threading.Thread):
 
     def __init__(self, ip, port):
         
@@ -59,8 +59,13 @@ class server:
         # Set local IP and PORT
         self.port = port
         self.ip = ip
+        self._stop = threading.Event()
 
+    def stop(self):
+        self._stop.set()
 
+    def stopped(self):
+        return self._stop.isSet()
 
     def serve(self):
         # Create the server socket and bind to the configured IP and port
@@ -71,8 +76,16 @@ class server:
         # Start listening, accept incoming connections and pass them to handle
         server.listen(5)
         while True:
+            
+            # Allow the loop to break by externally setting stop
+            if self.stopped():
+                self.stop()
+                exit('Server stopped, exiting')
+
             conn, addr = server.accept()
+            
             #logging.info('Accepted connection from {0}'.format(addr))
+            
             self.handle(conn)
             conn.close()
 
@@ -1046,3 +1059,4 @@ def start_server(serverInfo):
     pServer = server(HOST,PORT)
     serv_thread = threading.Thread(target=pServer.serve)
     serv_thread.start()
+    return pServer
