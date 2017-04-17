@@ -66,6 +66,7 @@ class ServerInfo:
                 log.info('Missing rsa_bits entry, defaulting to 2048')
                 self.rsa_bits = 2048
                 self.rsa = RSA.generate(2048)
+                serverSection['rsa_bits'] = '2048'
             
             else:
                 log.info('Creating key of size rsa_bits')
@@ -76,7 +77,7 @@ class ServerInfo:
                                                    round(time.time()))
             
             log.info('Saving generated key to: {0}'.format(filepath))
-            
+
             with open(filepath,'wb') as f:
                 f.write(bytes(self.rsa.exportKey('PEM')))
                 log.info('Saved private key to {0}'.format(filepath))
@@ -88,6 +89,10 @@ class ServerInfo:
                 self.publickey = RSA.importKey(
                                     self.rsa.publickey().exportKey('PEM'))
 
+            # Set config to use this new key from now on
+            serverSection['rsa_dir'] = filepath
+            with open('nchat_config.ini','w') as f: config.write(f)
+
         else:
             # Import the key from the rsa_dir
             try:
@@ -98,8 +103,8 @@ class ServerInfo:
                 with open(self.rsa_dir,'rb') as f:
                     self.privKey = RSA.importKey(f.read())
                     
-                with open(self.rsa_dir+'.pub','wb') as f:
-                    self.publickey = RSA.importkey(f.read())
+                with open(self.rsa_dir+'.pub','rb') as f:
+                    self.publickey = RSA.importKey(f.read())
                     log.info('Key imported')
 
             except FileNotFoundError as e:
