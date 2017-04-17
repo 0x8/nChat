@@ -875,7 +875,7 @@ class server:
         username = connections[ip].username
 
         # Inform the user of the quit action
-        print('{0} at {1}:{2} has quit.'.format(username, ip, port)
+        print('{0} at {1}:{2} has quit.'.format(username, ip, port))
         
 
         # Remove dict entry and set currcon to none        
@@ -884,10 +884,6 @@ class server:
         currcon = None
         
     
-
-    def nick_change(self, msg, ip, port):
-            
-
 
     def mdecrypt(self,msg,ip,port):
         '''Decrypt and display an instant message'''
