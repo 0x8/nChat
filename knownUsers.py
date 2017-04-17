@@ -154,6 +154,24 @@ def getPubKey(username):
     return pubkey
 
 
+
+def changeUser(olduser, newuser):
+    '''Updates the username in known_users to newuser'''
+    
+    with open('known_users','r') as f:
+        lines = f.readlines()
+
+    for line in lines:
+        if line.startswith(olduser):
+            phash = line.split(':')[1]
+            newline = newuser + ':' + phash
+            line = newline
+
+    with open('known_users','w') as f:
+        f.write(lines)
+            
+
+
 def pkError(uname):
     print('CRITICAL: Issue encountered...')
     print('Failed to locate public key for user: {0}'.format(uname))
