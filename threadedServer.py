@@ -371,8 +371,8 @@ class server(threading.Thread):
         # If a connection has already been established, send an busy message
         # and stop processing. Minor protection against someone trying to
         # reauth with a different key.
-        global busy
-        if busy:
+        global Busy
+        if Busy:
             intent = "SIG_BUSY:{0}:{1}".format(localInfo.HOST, localInfo.PORT)
             self.sendIntent(intent, ip, port)
             
@@ -583,7 +583,7 @@ class server(threading.Thread):
                 logging.info('Sending request to auth known user')
 
                 # Get salt:
-                salt = getSalt(username)
+                salt = knownUsers.getSalt(username)
                 
                 # Craft and send request to auth a known user
                 intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
@@ -616,7 +616,7 @@ class server(threading.Thread):
                 logging.info('Sending request to auth known user')
 
                 # Get salt:
-                salt = getSalt(username)
+                salt = knownUsers.getSalt(username)
                 
                 # Craft and send request to auth a known user
                 intent = 'REQ_KNOWN:{0}:{1}:{2}:{3}'.format(
