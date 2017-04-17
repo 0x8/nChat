@@ -64,10 +64,10 @@ if __name__ == '__main__':
                                                      serverInfo.PORT))
     # Start client and server 
     ts = threadedServer
-    ts.start_server(serverInfo)
+    sthread = ts.start_server(serverInfo)
     
     logging.info('Server started on {0}:{1}'.format(serverInfo.HOST,
                                                         serverInfo.PORT))
     
     logging.info('Starting client...')
-    client.start_client(serverInfo,ts)
+    client.start_client(serverInfo,ts, sthread)
