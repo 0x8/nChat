@@ -238,7 +238,7 @@ class server(threading.Thread):
 
         # Ensure old user exists
         elif not knownUsers.check(olduser):
-            intent = 'SIG_ERR:{0}:{1}:{2}'.fomrat(
+            intent = 'SIG_ERR:{0}:{1}:{2}'.format(
                 localInfo.HOST,
                 localInfo.PORT,
                 'Old user does not exist, unknown error.')
@@ -519,7 +519,7 @@ class server(threading.Thread):
             logging.debug('Printing them for manual inspection:')
             logging.debug('pKey:  {0}'.format(pKey))
             logging.debug('myKey: {0}'.format(myKey))
-            logging.debug('pIV:   {0}'.fomrat(pIV))
+            logging.debug('pIV:   {0}'.format(pIV))
             logging.debug('myIV:  {0}'.format(myIV))
             
             # Craft abortion intent and tell the remote client
