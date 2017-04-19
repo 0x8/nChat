@@ -831,6 +831,10 @@ class server(threading.Thread):
         username = msg.split(':')[3]
         passhash = msg.split(':')[4]
         
+        # Verify user is indeed new to avoid spoofing
+        if knownUsers.check(username):
+            return # Spoofing detected, drop
+
         # Decode and decrypt the hash
         passhash = base64.b64decode(passhash)
         passhash = self.decrypt(ip, passhash)

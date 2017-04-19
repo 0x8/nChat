@@ -66,7 +66,7 @@ def start_client(serverInfo, tserv, servThread):
         # the user for input until the handshake is done
         inHS = ts.getState()
         if inHS:
-            logging.debug('Suppresed prompt')
+            #logging.debug('Suppresed prompt')
             continue
         
         else:

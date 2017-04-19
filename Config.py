@@ -100,10 +100,10 @@ class ServerInfo:
                 log.info('Opening {0} to import the key'.format(
                             self.rsa_dir))
 
-                with open(self.rsa_dir,'rb') as f:
+                with open(self.rsa_dir,'r') as f:
                     self.privKey = RSA.importKey(f.read())
                     
-                with open(self.rsa_dir+'.pub','rb') as f:
+                with open(self.rsa_dir+'.pub','r') as f:
                     self.publickey = RSA.importKey(f.read())
                     log.info('Key imported')
 
