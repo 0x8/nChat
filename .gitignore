@@ -4,4 +4,5 @@
 nchat2.py
 __pycache__
 rsa/*_rsakey*
+logs/*.log
 known_users
