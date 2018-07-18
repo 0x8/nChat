@@ -3,5 +3,5 @@
 .*.swo
 nchat2.py
 __pycache__
-rsa/
+rsa/*_rsakey*
 known_users
